@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JP · Centro de Mando</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #1a1d24;
+    --border: #252830;
+    --accent: #e8c547;
+    --accent2: #4fc3f7;
+    --accent3: #ef5350;
+    --accent4: #66bb6a;
+    --accent5: #ab47bc;
+    --text: #e2e4ea;
+    --text-dim: #6b7280;
+    --text-mid: #9ca3af;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* GRID BG */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(232,197,71,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,197,71,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .header-left h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 2.8rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--accent);
+  }
+
+  .header-left .subtitle {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 0.4rem;
+  }
+
+  .header-right {
+    text-align: right;
+  }
+
+  .date-display {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  .stats-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    justify-content: flex-end;
+  }
+
+  .stat-pill {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 2px;
+    border: 1px solid;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .pill-yellow { color: var(--accent); border-color: rgba(232,197,71,0.3); background: rgba(232,197,71,0.05); }
+  .pill-red { color: var(--accent3); border-color: rgba(239,83,80,0.3); background: rgba(239,83,80,0.05); }
+  .pill-green { color: var(--accent4); border-color: rgba(102,187,106,0.3); background: rgba(102,187,106,0.05); }
+
+  /* TABS */
+  .tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .tab-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 2px;
+  }
+
+  .tab-btn:hover { color: var(--text); border-color: var(--accent); }
+  .tab-btn.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 700;
+  }
+
+  /* CARDS GRID */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 1rem;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    transition: all 0.2s;
+    display: none;
+  }
+
+  .card.visible { display: block; }
+  .card:hover { border-color: rgba(232,197,71,0.2); }
+
+  .card-header {
+    padding: 1rem 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .card-icon {
+    font-size: 1.1rem;
+    width: 2rem;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .card-title-group { flex: 1; }
+
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+  }
+
+  .card-cat {
+    font-size: 0.6rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0.2rem;
+  }
+
+  .card-badges {
+    display: flex;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .badge {
+    font-size: 0.55rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 2px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .badge-urgent { background: rgba(239,83,80,0.15); color: var(--accent3); border: 1px solid rgba(239,83,80,0.3); }
+  .badge-active { background: rgba(79,195,247,0.1); color: var(--accent2); border: 1px solid rgba(79,195,247,0.3); }
+  .badge-pending { background: rgba(232,197,71,0.1); color: var(--accent); border: 1px solid rgba(232,197,71,0.3); }
+  .badge-ok { background: rgba(102,187,106,0.1); color: var(--accent4); border: 1px solid rgba(102,187,106,0.3); }
+  .badge-legal { background: rgba(171,71,188,0.1); color: var(--accent5); border: 1px solid rgba(171,71,188,0.3); }
+
+  .collapse-arrow {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    transition: transform 0.2s;
+    flex-shrink: 0;
+  }
+
+  .card.collapsed .collapse-arrow { transform: rotate(-90deg); }
+
+  .card-body {
+    padding: 1rem 1.2rem;
+  }
+
+  .card.collapsed .card-body { display: none; }
+
+  /* TASK ITEMS */
+  .task-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(37,40,48,0.7);
+    cursor: pointer;
+  }
+
+  .task-item:last-child { border-bottom: none; }
+
+  .task-check {
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    flex-shrink: 0;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    background: transparent;
+  }
+
+  .task-item.done .task-check {
+    background: var(--accent4);
+    border-color: var(--accent4);
+  }
+
+  .task-item.done .task-check::after {
+    content: '✓';
+    font-size: 0.55rem;
+    color: #000;
+    font-weight: bold;
+  }
+
+  .task-item.done .task-text {
+    text-decoration: line-through;
+    color: var(--text-dim);
+  }
+
+  .task-text {
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--text-mid);
+    flex: 1;
+    transition: color 0.15s;
+  }
+
+  .task-priority {
+    font-size: 0.55rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .p-high { color: var(--accent3); }
+  .p-mid { color: var(--accent); }
+  .p-low { color: var(--text-dim); }
+
+  /* PROGRESS BAR */
+  .progress-wrap {
+    margin-top: 0.8rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    margin-bottom: 0.4rem;
+  }
+
+  .progress-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+
+  /* COLOR STRIPS */
+  .strip-tech { border-left: 3px solid var(--accent2); }
+  .strip-police { border-left: 3px solid var(--accent); }
+  .strip-legal { border-left: 3px solid var(--accent5); }
+  .strip-personal { border-left: 3px solid var(--accent4); }
+  .strip-urgent { border-left: 3px solid var(--accent3); }
+  .strip-trading { border-left: 3px solid #f97316; }
+
+  /* EMPTY STATE */
+  .empty-state {
+    grid-column: 1/-1;
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    display: none;
+  }
+
+  /* SEARCH */
+  .search-bar {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    margin-bottom: 1.5rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-bar:focus { border-color: var(--accent); }
+  .search-bar::placeholder { color: var(--text-dim); }
+
+  /* SCROLL */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="header-left">
+      <h1>CENTRO DE MANDO</h1>
+      <div class="subtitle">Juan Pablo · Frentes Operativos · 2026</div>
+    </div>
+    <div class="header-right">
+      <div class="date-display" id="currentDate"></div>
+      <div class="stats-row">
+        <div class="stat-pill pill-red" id="stat-urgent"></div>
+        <div class="stat-pill pill-yellow" id="stat-pending"></div>
+        <div class="stat-pill pill-green" id="stat-done"></div>
+      </div>
+    </div>
+  </header>
+
+  <input type="text" class="search-bar" placeholder="// buscar tarea, frente, área..." id="searchInput">
+
+  <div class="tabs" id="tabsContainer"></div>
+  <div class="cards-grid" id="cardsGrid"></div>
+
+</div>
+
+<script>
+let DATA = [];
+
+async function loadDashboard() {
+
+    const response = await fetch('./dashboard-data.json');
+
+    DATA = await response.json();
+
+    console.log(DATA);
+
+    await loadState();
+}
+
+updateDate();
+loadDashboard();
+const CATEGORIES = [
+  { id: 'all', label: '// Todo' },
+  { id: 'tech', label: '⚙ Técnico' },
+  { id: 'police', label: '🚔 Policial' },
+  { id: 'legal', label: '⚖ Legal' },
+  { id: 'trading', label: '📈 Trading' },
+  { id: 'opos', label: '📚 Oposicions' },
+  { id: 'personal', label: '🌿 Personal' },
+];
+
+const CATEGORY_COLORS = {
+  tech: '#4fc3f7',
+  police: '#e8c547',
+  legal: '#ab47bc',
+  trading: '#f97316',
+  opos: '#f43f5e',
+  personal: '#66bb6a',
+};
+
+let doneMap = {};
+let activeTab = 'all';
+let searchTerm = '';
+let saveTimeout = null;
+
+const API = './mando-api/estado';
+
+async function loadState() {
+  try {
+    const res = await fetch(API);
+    if (res.ok) doneMap = await res.json();
+  } catch(e) {
+    // fallback a localStorage si la API no responde
+    try { doneMap = JSON.parse(localStorage.getItem('jp_done') || '{}'); } catch(e2){}
+  }
+  renderTabs();
+  renderCards();
+}
+
+function saveState() {
+  // debounce: espera 500ms antes de guardar para no saturar la API
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(async () => {
+    try {
+      await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doneMap)
+      });
+    } catch(e) {
+      // fallback a localStorage
+      try { localStorage.setItem('jp_done', JSON.stringify(doneMap)); } catch(e2){}
+    }
+  }, 500);
+}
+
+function renderTabs() {
+  const container = document.getElementById('tabsContainer');
+  container.innerHTML = CATEGORIES.map(cat => `
+    <button class="tab-btn ${activeTab === cat.id ? 'active' : ''}" onclick="setTab('${cat.id}')">${cat.label}</button>
+  `).join('');
+}
+
+function setTab(tabId) {
+  activeTab = tabId;
+  renderTabs();
+  renderCards();
+}
+
+function getTaskKey(cardId, taskIdx) {
+  return `${cardId}_${taskIdx}`;
+}
+
+function renderCards() {
+  const grid = document.getElementById('cardsGrid');
+  grid.innerHTML = '';
+
+  const filtered = DATA.filter(card => {
+    if (activeTab !== 'all' && card.category !== activeTab) return false;
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const inTitle = card.title.toLowerCase().includes(term);
+      const inTasks = card.tasks.some(t => t.text.toLowerCase().includes(term));
+      if (!inTitle && !inTasks) return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '<div class="empty-state" style="display:block;grid-column:1/-1">// Sin resultados</div>';
+    updateStats();
+    return;
+  }
+
+  filtered.forEach(card => {
+    const doneCount = card.tasks.filter((_, i) => doneMap[getTaskKey(card.id, i)]).length;
+    const pct = Math.round((doneCount / card.tasks.length) * 100);
+    const fillColor = pct === 100 ? '#66bb6a' : pct > 50 ? '#e8c547' : '#4fc3f7';
+
+    const taskHTML = card.tasks.map((task, i) => {
+      const key = getTaskKey(card.id, i);
+      const done = doneMap[key];
+      const pIcon = task.priority === 'high' ? '●' : task.priority === 'mid' ? '◉' : '○';
+      const pClass = task.priority === 'high' ? 'p-high' : task.priority === 'mid' ? 'p-mid' : 'p-low';
+      return `
+        <div class="task-item ${done ? 'done' : ''}" onclick="toggleTask('${card.id}', ${i})">
+          <div class="task-check"></div>
+          <div class="task-text">${task.text}</div>
+          <div class="task-priority ${pClass}">${pIcon}</div>
+        </div>
+      `;
+    }).join('');
+
+    const badgesHTML = card.badges.map((cls, i) =>
+      `<span class="badge ${cls}">${card.badgeLabels[i]}</span>`
+    ).join('');
+
+    const catColor = CATEGORY_COLORS[card.category] || '#fff';
+
+    const el = document.createElement('div');
+    el.className = `card visible ${card.strip}`;
+    el.id = `card-${card.id}`;
+
+    const linkBtn = card.link
+      ? `<a href="${card.link}" target="_blank" onclick="event.stopPropagation()" style="font-size:0.6rem;padding:0.2rem 0.5rem;border:1px solid rgba(244,63,94,0.4);color:#f43f5e;background:rgba(244,63,94,0.08);border-radius:2px;text-decoration:none;letter-spacing:0.06em;flex-shrink:0">🔗 WEB</a>`
+      : '';
+
+    el.innerHTML = `
+      <div class="card-header" onclick="toggleCard('${card.id}')">
+        <div class="card-icon">${card.icon}</div>
+        <div class="card-title-group">
+          <div class="card-title">${card.title}</div>
+          <div class="card-cat" style="color:${catColor}">${card.catLabel}</div>
+        </div>
+        <div class="card-badges">${badgesHTML}${linkBtn}</div>
+        <div class="collapse-arrow">▾</div>
+      </div>
+      <div class="card-body">
+        ${taskHTML}
+        <div class="progress-wrap">
+          <div class="progress-label">
+            <span>PROGRESO</span>
+            <span>${doneCount}/${card.tasks.length} · ${pct}%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width:${pct}%;background:${fillColor}"></div>
+          </div>
+        </div>
+      </div>
+    `;
+    grid.appendChild(el);
+  });
+
+  updateStats();
+}
+
+function toggleCard(cardId) {
+  const el = document.getElementById(`card-${cardId}`);
+  el.classList.toggle('collapsed');
+}
+
+function toggleTask(cardId, taskIdx) {
+  const key = getTaskKey(cardId, taskIdx);
+  doneMap[key] = !doneMap[key];
+  saveState();
+  renderCards();
+}
+
+function updateStats() {
+  let totalTasks = 0, doneTasks = 0, urgentRemaining = 0;
+  DATA.forEach(card => {
+    card.tasks.forEach((task, i) => {
+      totalTasks++;
+      const key = getTaskKey(card.id, i);
+      if (doneMap[key]) doneTasks++;
+      else if (task.priority === 'high') urgentRemaining++;
+    });
+  });
+  const pending = totalTasks - doneTasks;
+  document.getElementById('stat-urgent').textContent = `${urgentRemaining} CRÍTICAS`;
+  document.getElementById('stat-pending').textContent = `${pending} PENDIENTES`;
+  document.getElementById('stat-done').textContent = `${doneTasks} COMPLETADAS`;
+}
+
+function updateDate() {
+  const now = new Date();
+  const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+  document.getElementById('currentDate').textContent = now.toLocaleDateString('es-ES', opts).toUpperCase();
+}
+
+document.getElementById('searchInput').addEventListener('input', function() {
+  searchTerm = this.value.trim();
+  renderCards();
+});
+
+updateDate();
+loadDashboard();
+</script>
+</body>
+</html>

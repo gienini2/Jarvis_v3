@@ -1,0 +1,16 @@
+[Unit]
+Description=Jarvis Telegram Relay
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/jarvis-relay
+EnvironmentFile=/opt/jarvis-relay/.env
+ExecStart=/opt/jarvis-relay/venv/bin/uvicorn relay:api --host 0.0.0.0 --port 10004
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

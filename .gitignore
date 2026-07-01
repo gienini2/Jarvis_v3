@@ -1,7 +1,21 @@
 .venv/
-**pycache**/
+venv/
+**/__pycache__/
 *.pyc
-.env
+*.env
+relay.env
 .vscode/
+.idea/
 logs/
 backups/
+config/google_credentials.json
+config/google_token.json
+config/repo_aliases.json
+connectors/relay.env
+# Personal data — never commit
+dashboard-data.json
+*.txt
+
+# Claude memory
+.claude/
+.aider

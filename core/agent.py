@@ -15,6 +15,7 @@ intents. Ver Action Items del ADR.
 """
 import json
 import logging
+import time
 import requests
 
 from config.settings import settings
@@ -24,6 +25,14 @@ from core.llm import SYSTEM_PROMPT
 log = logging.getLogger("jarvis.agent")
 
 MAX_TOOL_ROUNDS = 4
+
+
+def _raise_with_body(r: requests.Response):
+    """requests.raise_for_status() no incluye el cuerpo de la respuesta en el
+    mensaje de error -- sin esto es imposible saber POR QUE Ollama/NVIDIA
+    rechazaron el request (ej: 400 Bad Request no dice que campo esta mal)."""
+    if r.status_code >= 400:
+        raise requests.HTTPError(f"{r.status_code} {r.reason} -- body: {r.text[:1000]}", response=r)
 
 
 def _nvidia_chat(messages: list[dict], tools: list[dict]) -> dict:
@@ -39,14 +48,24 @@ def _nvidia_chat(messages: list[dict], tools: list[dict]) -> dict:
         "temperature": settings.LLM_TEMPERATURE,
         "max_tokens": settings.LLM_MAX_TOKENS,
     }
-    r = requests.post(
-        "https://integrate.api.nvidia.com/v1/chat/completions",
-        headers=headers,
-        json=payload,
-        timeout=90,
-    )
-    r.raise_for_status()
-    return r.json()["choices"][0]["message"]
+    last_err = None
+    for attempt in range(2):  # 1 reintento -- 503 en el tier gratis de NIM suele ser transitorio
+        try:
+            r = requests.post(
+                "https://integrate.api.nvidia.com/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=90,
+            )
+            if r.status_code == 503 and attempt == 0:
+                log.warning("NVIDIA 503 (servicio saturado, no es problema de API key) -- reintentando en 3s")
+                time.sleep(3)
+                continue
+            _raise_with_body(r)
+            return r.json()["choices"][0]["message"]
+        except requests.RequestException as e:
+            last_err = e
+    raise last_err
 
 
 def _ollama_chat(messages: list[dict], tools: list[dict]) -> dict:
@@ -73,7 +92,7 @@ def _ollama_chat(messages: list[dict], tools: list[dict]) -> dict:
         },
         timeout=settings.TIMEOUT,
     )
-    r.raise_for_status()
+    _raise_with_body(r)
     return r.json()["message"]
 
 

@@ -23,6 +23,9 @@ from connectors.google_tools import (
 
 # ---------------------------------------------------------------------------
 # Schemas (formato tools de OpenAI/NVIDIA/Ollama)
+# NOTA: sin la clave "default" en los schemas -- Ollama /api/chat devuelve
+# 400 Bad Request con algunos JSON schemas que la incluyen. Los defaults
+# reales viven en las firmas de las funciones Python de abajo.
 # ---------------------------------------------------------------------------
 
 TOOLS = [
@@ -62,7 +65,7 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "description": "Que buscar en la memoria"},
-                    "limit": {"type": "integer", "description": "Maximo de resultados", "default": 10},
+                    "limit": {"type": "integer", "description": "Maximo de resultados, por defecto 10 si se omite"},
                 },
                 "required": ["query"],
             },
@@ -76,7 +79,7 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "max_results": {"type": "integer", "default": 5},
+                    "max_results": {"type": "integer", "description": "por defecto 5 si se omite"},
                 },
             },
         },
@@ -90,7 +93,7 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "description": "Texto a buscar"},
-                    "max_results": {"type": "integer", "default": 5},
+                    "max_results": {"type": "integer", "description": "por defecto 5 si se omite"},
                 },
                 "required": ["query"],
             },
@@ -104,7 +107,7 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "max_results": {"type": "integer", "default": 10},
+                    "max_results": {"type": "integer", "description": "por defecto 10 si se omite"},
                 },
             },
         },
@@ -118,7 +121,7 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "description": "Texto a buscar en el nombre del archivo"},
-                    "max_results": {"type": "integer", "default": 10},
+                    "max_results": {"type": "integer", "description": "por defecto 10 si se omite"},
                 },
                 "required": ["query"],
             },

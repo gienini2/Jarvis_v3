@@ -1,39 +1,57 @@
+import asyncio
+import contextlib
 import os
 import logging
+import httpx
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
-from connectors.google_tools import handle_google_request
 
-from core.llm import generate
-from core.memory import save_message
-from core.intent import classify, log_intent
-from core.tasks import (
-    resolve_task_ref,
-    complete_task,
-    find_tasks_by_project,
-    find_tasks_by_keyword,
-    sync_tasks_from_json,
-    add_task_context,
-)
+from core.processor import process
+from core.tasks import find_tasks_by_project, find_tasks_by_keyword, sync_tasks_from_json, add_task_context
 from core.dashboard import get_pending_tasks
 from connectors.relay_client import drain_queue
+from auditor.api_routes import audit_router
+from auditor.db import get_job, get_summaries
+from config.settings import settings
+from core.db import get_connection
+from core.rag import search_memories
+from api.openai_compat import router as openai_router
+from alpha50.scheduler import alpha50_intent_handler
 
 os.environ["PYTHONUTF8"] = "1"
 log = logging.getLogger("jarvis")
+
+_RELAY_POLL_INTERVAL = 60
+
+
+async def _poll_relay():
+    while True:
+        await asyncio.sleep(_RELAY_POLL_INTERVAL)
+        try:
+            n = await asyncio.to_thread(drain_queue)
+            if n:
+                log.info(f"Relay poll: {n} mensajes drenados")
+        except Exception as e:
+            log.debug(f"Relay poll: {e}")
 
 
 @asynccontextmanager
 async def lifespan(app):
     n = drain_queue()
     if n:
-        log.info(f"Cola drenada: {n} mensajes procesados al arrancar")
+        log.info(f"Cola drenada al arrancar: {n} mensajes procesados")
+    task = asyncio.create_task(_poll_relay())
     yield
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
 
 
 app = FastAPI(lifespan=lifespan)
 
+app.include_router(openai_router, prefix="/v1")
 
 class ChatRequest(BaseModel):
     message: str
@@ -41,107 +59,104 @@ class ChatRequest(BaseModel):
 
 class ContextRequest(BaseModel):
     mando_key: str
-    type: str       # note | decision | file | link
+    type: str
     content: str
 
 
-# ---------------------------------------------------------------------------
-# Health
-# ---------------------------------------------------------------------------
+class AprendeRequest(BaseModel):
+    message: str
+    intent: str
+
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 
-# ---------------------------------------------------------------------------
-# Chat — entry point principal
-# ---------------------------------------------------------------------------
+@app.post("/audit/{job_id}/notify")
+async def audit_notify(job_id: int):
+    job = get_job(job_id)
+    if not job:
+        return {"error": "job not found"}
+    summaries = get_summaries(job_id, level="executive")
+    text = summaries[0]["summary"] if summaries else "Auditoría completada sin resumen."
+    if len(text) > 3800:
+        text = text[:3800] + "\n\n…_(resumen truncado, ver EXECUTIVE_SUMMARY.md)_"
+    message = f"✅ Auditoría completada — job_id={job_id}\n{job['repo_path']}\n\n{text}"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(f"{settings.RELAY_URL}/notify", json={"message": message})
+    except Exception as e:
+        log.warning(f"[notify] no se pudo mandar a Telegram: {e}")
+    return {"status": "notified"}
+
 
 @app.post("/chat")
 def chat(req: ChatRequest):
-    save_message("user", req.message)
-
-    intent = classify(req.message)
-
-    if intent.type == "complete_task" and intent.task_ref:
-        response = _handle_complete_task(intent.task_ref)
-        log_intent(req.message, "complete_task", {"task_ref": intent.task_ref}, executed=True)
-
-    elif intent.type == "query_task":
-        response = _handle_query_task(intent.project_ref or "", req.message)
-        log_intent(req.message, "query_task", {"project_ref": intent.project_ref})
-    elif intent.type in ("google_gmail", "google_calendar", "google_drive"):
-            response = handle_google_request(intent.type, req.message)
-            log_intent(req.message, intent.type, intent.payload or None)
-    else:
-        response = generate(req.message)
-        log_intent(req.message, intent.type, intent.payload or None)
-
-    save_message("assistant", response)
-
+    alpha50_resp = alpha50_intent_handler(req.message)
+    if alpha50_resp:
+        return JSONResponse(
+            content={"response": alpha50_resp, "intent": "alpha50"},
+            media_type="application/json; charset=utf-8",
+        )
+    response, intent_type = process(req.message)
     return JSONResponse(
-        content={"response": response, "intent": intent.type},
+        content={"response": response, "intent": intent_type},
         media_type="application/json; charset=utf-8",
     )
 
 
-def _handle_complete_task(task_ref: str) -> str:
-    matches = resolve_task_ref(task_ref)
-
-    if not matches:
-        return f"No encontré ninguna tarea pendiente con '{task_ref}'."
-
-    if len(matches) == 1:
-        t = matches[0]
-        ok = complete_task(t["mando_key"])
-        if ok:
-            return f"Tarea marcada como completada en el Centro de Mando:\n[{t['priority']}] {t['project']} → {t['title']}"
-        return "No pude actualizar el estado de la tarea."
-
-    # Multiple matches — list them for clarification
-    lines = "\n".join(
-        f"  {i+1}. [{t['priority']}] {t['mando_key']} — {t['title']}"
-        for i, t in enumerate(matches[:5])
+@app.post("/chat/agent")
+def chat_agent(req: ChatRequest):
+    """
+    Ruta ALTERNATIVA de tool-calling (ADR-0001, Fase 1+2). No reemplaza /chat --
+    convive con el flujo de intents de siempre para poder comparar antes de decidir
+    si sustituye al clasificador de core/intent.py. Usa NVIDIA (llama-3.3-70b-instruct)
+    como motor de decision, con fallback a qwen2.5 local si no hay internet.
+    """
+    from core.agent import run
+    try:
+        response = run(req.message)
+    except Exception as e:
+        log.error(f"[chat_agent] fallo: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)},
+        )
+    return JSONResponse(
+        content={"response": response, "intent": "agent"},
+        media_type="application/json; charset=utf-8",
     )
-    return f"Encontré varias tareas con '{task_ref}'. ¿Cuál quieres marcar como hecha?\n{lines}"
 
 
-def _handle_query_task(project_ref: str, original_message: str) -> str:
-    # Try by project_id first, fall back to keyword search
-    tasks = find_tasks_by_project(project_ref) if project_ref else []
-    if not tasks:
-        tasks = find_tasks_by_keyword(project_ref)
+@app.post("/aprende")
+def aprende(req: AprendeRequest):
+    """Guarda un par (mensaje, intent) confirmado por el usuario para reentrenamiento."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO intents (message, intent_type, confirmed) VALUES (%s, %s, true)",
+            (req.message, req.intent)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    log.info(f"[aprende] guardado: '{req.message[:60]}' → {req.intent}")
+    return {"status": "ok", "message": req.message, "intent": req.intent}
 
-    if not tasks:
-        # No specific project found — answer with LLM + active memory
-        return generate(original_message)
-
-    lines = "\n".join(
-        f"  [{t['priority']}] {t['title']}"
-        for t in tasks[:10]
-    )
-    header = f"Tareas pendientes — {tasks[0]['project']}:\n"
-    return header + lines
-
-
-# ---------------------------------------------------------------------------
-# Tasks API
-# ---------------------------------------------------------------------------
 
 @app.get("/tasks")
 def get_tasks(
-    project: str = Query(None, description="project_id"),
+    project: str = Query(None),
     keyword: str = Query(None),
     status: str = Query(None),
 ):
     if project:
-        tasks = find_tasks_by_project(project, exclude_done=(status != "all"))
-    elif keyword:
-        tasks = find_tasks_by_keyword(keyword, exclude_done=(status != "all"))
-    else:
-        tasks = get_pending_tasks(limit=30)
-    return tasks
+        return find_tasks_by_project(project, exclude_done=(status != "all"))
+    if keyword:
+        return find_tasks_by_keyword(keyword, exclude_done=(status != "all"))
+    return get_pending_tasks(limit=30)
 
 
 @app.post("/tasks/sync")

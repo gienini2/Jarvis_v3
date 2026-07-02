@@ -1,17 +1,43 @@
-import json
+import logging
 import requests
 import urllib3
-from pathlib import Path
+
+from connectors.mando_tasks import list_projects
 
 urllib3.disable_warnings()
 
+log = logging.getLogger("jarvis.dashboard")
+
 ESTADO_URL = "https://figaro-server.taild7b9e6.ts.net/mando-api/estado"
-DATA_FILE = Path(__file__).parent.parent / "dashboard-data.json"
+
+# Cache en memoria: evita pegarle a Figaro en cada mensaje.
+_CACHE_TTL = 30  # segundos
+_cache: dict = {"data": None, "ts": 0}
 
 
 def load_data() -> list:
-    with open(DATA_FILE, encoding="utf-8") as f:
-        return json.load(f)
+    """
+    Fuente unica de verdad: mando-api en Figaro (via connectors/mando_tasks.list_projects()).
+    Antes leia un dashboard-data.json local que quedaba desincronizado del real
+    (el que vive en /var/www/dashboard/ en Figaro) y que ademas nunca se comiteaba a git
+    -- si se borraba o se olvidaba copiar, Jarvis se quedaba sin tareas. Con esto ya no
+    depende de ningun archivo local.
+    """
+    import time
+    now = time.time()
+    if _cache["data"] is not None and (now - _cache["ts"]) < _CACHE_TTL:
+        return _cache["data"]
+
+    try:
+        data = list_projects()
+        _cache["data"] = data
+        _cache["ts"] = now
+        return data
+    except Exception as e:
+        log.warning(f"No se pudo obtener el Centro de Mando de Figaro: {e}")
+        if _cache["data"] is not None:
+            return _cache["data"]  # servir cache vieja antes que fallar del todo
+        return []
 
 
 def get_estado() -> dict:

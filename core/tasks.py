@@ -1,10 +1,5 @@
-import json
-from pathlib import Path
-
 from core.db import get_connection
 from core.dashboard import load_data, get_estado, post_estado
-
-DATA_FILE = Path(__file__).parent.parent / "dashboard-data.json"
 
 _STATUS_FROM_EMOJI = {
     "✅": "done",
@@ -25,16 +20,25 @@ def _infer_status(text: str) -> str:
 
 
 def sync_tasks_from_json() -> int:
+    """
+    Espeja el estado remoto (mando-api en Figaro) a la tabla local `tasks`.
+    Como mando_key es "{project_id}_{idx}" (indice de array, no un ID estable),
+    borrar/reordenar tareas en remoto deja huerfanos en local si solo hacemos
+    upsert -- por eso al final borramos cualquier mando_key que ya no exista
+    en el pull actual.
+    """
     data = load_data()
     conn = get_connection()
     cur = conn.cursor()
     count = 0
+    seen_keys = []
 
     for project in data:
         project_id = project["id"]
         project_title = project["title"]
         for idx, task in enumerate(project["tasks"]):
             mando_key = f"{project_id}_{idx}"
+            seen_keys.append(mando_key)
             title = task["text"]
             priority = task["priority"]
             status = _infer_status(title)
@@ -53,6 +57,11 @@ def sync_tasks_from_json() -> int:
                 (mando_key, title, status, priority, project_title, project_id),
             )
             count += 1
+
+    if seen_keys:
+        cur.execute("DELETE FROM tasks WHERE NOT (mando_key = ANY(%s))", (seen_keys,))
+    else:
+        cur.execute("DELETE FROM tasks")
 
     conn.commit()
     cur.close()
@@ -164,13 +173,20 @@ def get_task_context(mando_key: str) -> list:
     return [{"type": r[0], "content": r[1], "created_at": str(r[2])} for r in rows]
 
 
-def _row_to_dict(r) -> dict:
-    return {
-        "id": r[0],
-        "mando_key": r[1],
-        "title": r[2],
-        "status": r[3],
-        "priority": r[4],
-        "project": r[5],
-        "project_id": r[6],
-    }
+def get_task_contexts_bulk(mando_keys: list[str]) -> dict[str, list[dict]]:
+    """Una sola query para obtener contextos de múltiples tareas."""
+    if not mando_keys:
+        return {}
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT t.mando_key, tc.type, tc.content
+        FROM task_context tc
+        JOIN tasks t ON t.id = tc.task_id
+        WHERE t.mando_key = ANY(%s)
+        ORDER BY t.mando_key, tc.created_at DESC
+        """,
+        (mando_keys,),
+    )
+   

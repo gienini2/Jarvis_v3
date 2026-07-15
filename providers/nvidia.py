@@ -25,7 +25,7 @@ class NvidiaProvider(BaseProvider):
                     "temperature": settings.LLM_TEMPERATURE,
                     "max_tokens": settings.LLM_MAX_TOKENS,
                 },
-                timeout=(3.05, 45),
+                timeout=(3.05, 15),
             )
             raise_with_body(response)
             text = response.json()["choices"][0]["message"]["content"]
@@ -48,7 +48,7 @@ class NvidiaProvider(BaseProvider):
                 "https://integrate.api.nvidia.com/v1/chat/completions",
                 headers=self._headers(),
                 json=payload,
-                timeout=(3.05, 45),
+                timeout=(3.05, 15),
             )
             raise_with_body(response)
             message = response.json()["choices"][0]["message"]

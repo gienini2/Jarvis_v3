@@ -72,6 +72,15 @@ def run(user_prompt: str) -> str:
         if not tool_calls:
             return message.get("content", "") or "No obtuve respuesta del modelo."
 
+        # Ollama no pone 'id' en sus tool_calls; Groq/NVIDIA si. Si una ronda la
+        # resuelve Ollama y la siguiente cambia a un provider OpenAI-estricto, el
+        # request petaba porque el mensaje 'tool' no referenciaba ningun
+        # tool_call (id vacio) y varios ids vacios colisionaban. Fijamos un id
+        # estable aqui y lo usamos igual en el assistant y en el resultado.
+        for i, tc in enumerate(tool_calls):
+            if not tc.get("id"):
+                tc["id"] = f"call_{round_n}_{i}"
+
         messages.append(_clean_assistant_message(message))
 
         for tc in tool_calls:
@@ -85,7 +94,7 @@ def run(user_prompt: str) -> str:
             result = call_tool(fn_name, args)
             messages.append({
                 "role": "tool",
-                "tool_call_id": tc.get("id", fn_name),
+                "tool_call_id": tc["id"],
                 "content": json.dumps(result, ensure_ascii=False, default=str),
             })
 

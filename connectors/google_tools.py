@@ -141,8 +141,10 @@ def list_drive_files(max_results: int = 10) -> list[dict]:
 
 def search_drive_files(query: str, max_results: int = 10) -> list[dict]:
     service = get_google_service("drive", "v3")
+    # Escapar \ y ' o una comilla en la busqueda rompe la query de Drive.
+    safe = query.replace("\\", "\\\\").replace("'", "\\'")
     results = service.files().list(
-        q=f"name contains '{query}'",
+        q=f"name contains '{safe}'",
         pageSize=max_results,
         fields="files(id, name, mimeType, modifiedTime)",
     ).execute()

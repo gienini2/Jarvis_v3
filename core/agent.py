@@ -89,4 +89,15 @@ def run(user_prompt: str) -> str:
                 "content": json.dumps(result, ensure_ascii=False, default=str),
             })
 
+    # Se agotaron las rondas con la ultima aun pidiendo tools: en vez de tirar
+    # todo lo recogido, una llamada final para que el modelo redacte la
+    # respuesta con los resultados que ya tiene en `messages`.
+    try:
+        final = router.chat_tools(LLMRequest(prompt=messages, tools=TOOLS))
+        content = final.get("content")
+        if content:
+            return content
+    except Exception as e:
+        log.warning(f"[agent] llamada final de sintesis fallo: {e}")
+
     return "Me quede sin vueltas resolviendo esto -- demasiadas herramientas encadenadas. Prueba a pedirlo mas concreto."

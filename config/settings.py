@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     LLM_TEMPERATURE: float = 0.2
     LLM_MAX_TOKENS: int = 2048
-    OLLAMA_NUM_CTX: int = 4096
+    OLLAMA_NUM_CTX: int = 8192   # 4096 truncaba system prompt + 17 tools + historial
 
     POSTGRES_HOST: str
     POSTGRES_PORT: int

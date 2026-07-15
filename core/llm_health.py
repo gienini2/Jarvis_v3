@@ -46,6 +46,7 @@ class HealthManager:
             state.online = True
             state.latency = latency
             state.last_success = time.time()
+            state.failures = 0  # una respuesta buena limpia la racha de fallos
 
     def record_failure(self, provider_name: str):
         with self._lock:

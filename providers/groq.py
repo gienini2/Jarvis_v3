@@ -25,7 +25,7 @@ class GroqProvider(BaseProvider):
                     "temperature": settings.LLM_TEMPERATURE,
                     "max_tokens": settings.LLM_MAX_TOKENS,
                 },
-                timeout=(3.05, 15),
+                timeout=(3.05, 45),
             )
             raise_with_body(response)
             text = response.json()["choices"][0]["message"]["content"]
@@ -49,7 +49,7 @@ class GroqProvider(BaseProvider):
                 },
                 # Un proveedor cloud caido no debe dejar el chat local en
                 # silencio durante un minuto: el router prueba NVIDIA/Ollama.
-                timeout=(3.05, 15),
+                timeout=(3.05, 45),
             )
             raise_with_body(response)
             message = response.json()["choices"][0]["message"]

@@ -58,3 +58,6 @@ Destino: PC local PG + re-indexar en Mem0
 - Importar ZIP ChatGPT (pendiente de OpenAI)
 - Garmin API integration (entrenamiento)
 - Limpiar prefijos "Gemini ha dicho:" / "Has dicho:" en memorias migradas
+- Renovar el certificado TLS de Fígaro (CADUCADO — tumbaba todo el Centro de
+  Mando). Parche temporal: connectors/mando_tasks.py y core/dashboard.py usan
+  verify=False. Al renovar el cert, quitar el verify=False.

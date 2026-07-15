@@ -16,6 +16,18 @@ connectors/relay.env
 dashboard-data.json
 *.txt
 
+# Estado en runtime / artefactos generados (no versionar)
+*.db
+*.log
+*.pkl
+EXECUTIVE_SUMMARY.md
+netscan/reports/
+
+# Datos personales / mutables (respaldar aparte, NO en git)
+config/training_data.json
+alpha50/*.json
+alpha50/*.xlsx
+
 # Claude memory
 .claude/
-.aider
+.aider*

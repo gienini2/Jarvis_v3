@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Jarvis v2 — Mapa del sistema</title>
+<style>
+  :root{
+    --bg:#14141c; --panel:#1c1c28; --panel2:#20202e; --border:#2e2e40;
+    --text:#e8e8f0; --muted:#8a8aa0;
+    --ok:#22c55e; --ok-bg:rgba(34,197,94,.12);
+    --prog:#f59e0b; --prog-bg:rgba(245,158,11,.12);
+    --pend:#6b7280; --pend-bg:rgba(107,114,128,.12);
+    --legacy:#ef4444; --legacy-bg:rgba(239,68,68,.10);
+    --accent:#7c8cff;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  }
+  header{
+    padding:20px 28px 14px; border-bottom:1px solid var(--border);
+    display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:14px;
+    background:linear-gradient(180deg,#181822,#14141c);
+  }
+  header h1{margin:0; font-size:20px; font-weight:650; letter-spacing:.2px;}
+  header p{margin:4px 0 0; color:var(--muted); font-size:12.5px;}
+  .stats{display:flex; gap:10px; flex-wrap:wrap;}
+  .stat{background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:8px 14px; text-align:center; min-width:76px;}
+  .stat b{display:block; font-size:18px;}
+  .stat span{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px;}
+  .legend{display:flex; gap:8px; flex-wrap:wrap; padding:10px 28px; border-bottom:1px solid var(--border); align-items:center;}
+  .legend b{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-right:4px;}
+  .chip{
+    display:flex; align-items:center; gap:6px; font-size:11.5px; padding:5px 10px;
+    border-radius:20px; border:1px solid var(--border); cursor:pointer; user-select:none;
+    background:var(--panel); transition:.15s;
+  }
+  .chip:hover{border-color:var(--accent);}
+  .chip.off{opacity:.35;}
+  .dot{width:9px; height:9px; border-radius:50%;}
+  .layout{display:flex;}
+  .canvas-wrap{flex:1; overflow:auto; padding:20px 10px 40px 20px;}
+  svg{display:block;}
+  .node{
+    position:absolute; border-radius:10px; border:1.5px solid var(--border);
+    background:var(--panel); cursor:pointer; transition:.15s; overflow:hidden;
+    box-shadow:0 2px 6px rgba(0,0,0,.35);
+  }
+  .node:hover{border-color:var(--accent); transform:translateY(-1px); box-shadow:0 4px 14px rgba(124,140,255,.25);}
+  .node.dim{opacity:.18;}
+  .node.selected{border-color:var(--accent); box-shadow:0 0 0 2px rgba(124,140,255,.35);}
+  .node .bar{height:4px; width:100%;}
+  .node .body{padding:8px 10px 6px;}
+  .node .title{font-size:12.5px; font-weight:650; line-height:1.25;}
+  .node .sub{font-size:10px; color:var(--muted); margin-top:3px; line-height:1.3; font-family:ui-monospace,Consolas,monospace;}
+  .node .badge{
+    position:absolute; top:7px; right:8px; font-size:9px; padding:2px 6px; border-radius:8px; font-weight:700; letter-spacing:.3px;
+  }
+  .b-ok{color:var(--ok); background:var(--ok-bg);}
+  .b-prog{color:var(--prog); background:var(--prog-bg);}
+  .b-pend{color:var(--pend); background:var(--pend-bg);}
+  .b-legacy{color:var(--legacy); background:var(--legacy-bg);}
+  .edge{fill:none; stroke:#454560; stroke-width:1.6; opacity:.65;}
+  .edge.dashed{stroke-dasharray:4 4; opacity:.5;}
+  .edge.hi{stroke:var(--accent); stroke-width:2.4; opacity:1;}
+  .sidebar{
+    width:320px; flex-shrink:0; border-left:1px solid var(--border); background:var(--panel2);
+    padding:18px; overflow-y:auto; max-height:calc(100vh - 0px);
+  }
+  .sidebar h2{font-size:14px; margin:0 0 6px;}
+  .sidebar .path{font-family:ui-monospace,Consolas,monospace; font-size:11px; color:var(--accent); word-break:break-all;}
+  .sidebar .st{display:inline-block; margin:8px 0 10px; font-size:11px; padding:3px 9px; border-radius:8px; font-weight:700;}
+  .sidebar p{font-size:12.5px; line-height:1.55; color:#cfcfe0; margin:8px 0;}
+  .sidebar .hint{color:var(--muted); font-size:11.5px; font-style:italic;}
+  hr{border:none; border-top:1px solid var(--border); margin:16px 0;}
+  .pend-list{list-style:none; margin:0; padding:0;}
+  .pend-list li{
+    font-size:12px; line-height:1.5; padding:8px 10px; margin-bottom:6px; border-radius:6px;
+    background:var(--panel); border:1px solid var(--border);
+  }
+  .pend-list li .tag{display:block; font-size:9.5px; color:var(--muted); margin-top:3px;}
+  .sidebar h3{font-size:11.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); margin:0 0 10px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Jarvis v2 — Mapa del sistema</h1>
+    <p>Actualizado el 5 jul 2026 (noche) -- codigo real + SKILL.md v1.7.0: el agente de tool-calling pasa a ser el camino PRINCIPAL para las 3 interfaces, intent.py queda como fallback permanente - estilo flujo de nodos (n8n)</p>
+  </div>
+  <div class="stats">
+    <div class="stat"><b>27</b><span>nodos</span></div>
+    <div class="stat" style="color:var(--ok)"><b id="cnt-ok">-</b><span>activo</span></div>
+    <div class="stat" style="color:var(--prog)"><b id="cnt-prog">-</b><span>en curso</span></div>
+    <div class="stat" style="color:var(--pend)"><b id="cnt-pend">-</b><span>pendiente</span></div>
+    <div class="stat" style="color:var(--legacy)"><b id="cnt-legacy">-</b><span>legado</span></div>
+  </div>
+</header>
+
+<div class="legend">
+  <b>Filtrar:</b>
+  <div class="chip" data-f="ok"><span class="dot" style="background:var(--ok)"></span>Activo / funcional</div>
+  <div class="chip" data-f="prog"><span class="dot" style="background:var(--prog)"></span>En progreso</div>
+  <div class="chip" data-f="pend"><span class="dot" style="background:var(--pend)"></span>Pendiente / no prioritario</div>
+  <div class="chip" data-f="legacy"><span class="dot" style="background:var(--legacy)"></span>Legado / sin uso actual</div>
+  <div class="chip" data-f="all" style="margin-left:auto;">Mostrar todo</div>
+</div>
+
+<div class="layout">
+  <div class="canvas-wrap">
+    <div id="canvas" style="position:relative; width:1750px; height:860px;">
+      <svg id="edges" width="1750" height="860" style="position:absolute; top:0; left:0; pointer-events:none;">
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,6 L7,3 z" fill="#5a5a78"/>
+          </marker>
+        </defs>
+      </svg>
+      <!-- nodes injected by JS -->
+    </div>
+  </div>
+
+  <div class="sidebar" id="sidebar">
+    <h3>Detalle</h3>
+    <div id="detail">
+      <p class="hint">Haz clic en cualquier nodo del mapa para ver su detalle: ruta de archivos, que hace y su estado real verificado en el codigo.</p>
+    </div>
+
+    <hr>
+    <h3>Cambios recientes (05/07/2026 noche - agente principal + pgvector)</h3>
+    <ul class="pend-list">
+      <li><b>core/agent.py pasa a ser el camino PRINCIPAL</b> para las 3 interfaces (Telegram, chat local, API) -- core/processor.py llama a agent.run() antes que al clasificador de intents. Decision explicita de Juan Pablo: ya no hace falta usar /chat/agent a mano, cualquier mensaje en lenguaje natural puede disparar cualquier tool.</li>
+      <li><b>core/intent.py pasa a FALLBACK PERMANENTE</b> -- decision explicita ("fallback"), no se retira. Solo se usa si agent.run() lanza excepcion.</li>
+      <li><b>complete_task</b> anadida a core/tools.py -- sin ella, el cambio de arquitectura habria hecho perder silenciosamente la capacidad de marcar tareas como hechas via lenguaje natural (existia en el flujo de intents viejo, no tenia tool equivalente).</li>
+      <li><b>query_alpha50_history</b> (tool) + alpha50/history_reader.py (nuevo, solo lectura) -- el agente ya puede consultar el historial de entrenamientos de Alpha50 desde cualquier conversacion.</li>
+      <li><b>edit_code ya alcanzable desde el chat normal</b> -- antes solo funcionaba llamando a /chat/agent directamente; ahora es una tool mas del camino principal.</li>
+      <li><b>Google (Gmail/Calendar/send/create) alcanzable desde Telegram</b> -- resuelto arquitectonicamente al unificar las 3 interfaces bajo el mismo agente; pendiente probarlo en real desde el bot.</li>
+      <li><b>scripts/migrate_pgvector.sql + core/rag.py reescrito</b> para usar el operador nativo &lt;=&gt; de pgvector en vez de coseno en Python. NO EJECUTADO -- requiere psql/superusuario en tu maquina, no lo puedo correr desde esta sesion.</li>
+      <li><b>scripts/create_jarvis_v2_db.ps1</b> listo (CREATE DATABASE + pg_dump/psql para copiar contenido). NO EJECUTADO, mismo motivo.</li>
+      <li><b>Nada de esto se ha probado en real todavia</b> (ni lo de esta noche ni lo de antes) -- solo verificado por lectura directa del codigo. Requiere pruebas desde el PC de Juan Pablo.</li>
+    </ul>
+
+    <hr>
+    <h3>Cambios recientes (05/07/2026 tarde - nuevas capacidades del agente)</h3>
+    <ul class="pend-list">
+      <li><b>4 tools nuevas en core/tools.py</b> ("Fase 2.5"): send_telegram_message (mensaje a demanda via /notify), send_email (conecta google_tools.send_email(), que ya existia sin usar), create_calendar_event (expone google_tools.create_event() al agente) y edit_code (aider en modo escritura, auto-commits forzado por llamada, validado contra el whitelist de auditor/allowed_paths.py).</li>
+      <li><b>SYSTEM_PROMPT actualizado</b> (core/llm.py) -- seccion "LO QUE PUEDES HACER" reescrita con las capacidades reales de arriba, mas un bloque nuevo "CUIDADO CON LAS ACCIONES REALES" que instruye a no inventar datos y preguntar antes de ejecutar si falta algo.</li>
+      <li><b>OpenClaw investigado</b> -- framework open-source ya conectado a Jarvis via /v1/chat/completions. Decision: mantenerlo como frontend y aprovechar mas sus capacidades en vez de sustituirlo.</li>
+    </ul>
+
+    <hr>
+    <h3>Cambios recientes (04/07/2026 - auditoria de seguridad)</h3>
+    <ul class="pend-list">
+      <li><b>Centro de Mando roto en produccion</b> - /opt/mando-api/server.js solo tenia /estado; las rutas /tareas nunca se escribieron pese a darse por hechas. mando_tasks.py llevaba tiempo recibiendo 404 en cada mensaje. Reescrito y confirmado con curl.</li>
+      <li><b>/notify no existia</b> - auditor y Alpha50 llevaban tiempo avisando por Telegram contra un endpoint que daba 404 en silencio. Implementado, protegido con X-Relay-Key.</li>
+      <li><b>/queue/ack tiraba la respuesta</b> - mensajes procesados desde la cola offline nunca llegaban a mostrarse al usuario en Telegram. Corregido: ahora recupera el chat_id y reenvia.</li>
+      <li><b>JARVIS_URL con IP publica por defecto</b> - el relay podia intentar salir a internet en vez de Tailscale si el .env de Figaro no lo sobreescribia. Default corregido a 100.127.159.59.</li>
+      <li><b>core/dashboard.py sin cache de fallos</b> - reintentaba conexion con Figaro en cada mensaje. Ahora cachea el fallo.</li>
+      <li><b>SYSTEM_PROMPT corregido</b> - Jarvis negaba estar conectado a Telegram cuando le preguntaban por que no contesto ahi.</li>
+      <li><b>Seguridad</b> - JARVIS_API_KEY + RELAY_API_KEY nuevas; verify=False quitado de mando_tasks.py; auditor/allowed_paths.py (whitelist de rutas auditables).</li>
+      <li><b>scripts/chat.py</b> - warnings ya no interrumpen la conversacion, van a logs/chat.log.</li>
+    </ul>
+
+    <hr>
+    <h3>Pendientes activos</h3>
+    <ul class="pend-list">
+      <li><b>Ejecutar scripts/migrate_pgvector.sql</b> contra Postgres (requiere psql/superusuario en tu PC) y despues reiniciar JarvisAPI -- script y core/rag.py ya listos, solo falta correrlo.<span class="tag">05/07/2026 noche</span></li>
+      <li><b>Ejecutar scripts/create_jarvis_v2_db.ps1</b> (requiere superusuario) -- crea la DB y copia el contenido de 'jarvis'. Hazlo DESPUES de la migracion de pgvector, no antes.<span class="tag">05/07/2026 noche</span></li>
+      <li><b>Probar en real el switch agente-principal</b> desde las 3 interfaces (Telegram, chat local, API) -- verificado solo por lectura de codigo.<span class="tag">05/07/2026 noche</span></li>
+      <li><b>ADR-0001 Fase 3</b> - autonomia total de Jarvis sobre su propio codigo. edit_code es un primer paso acotado (un archivo, una instruccion, un commit) pero la Fase 3 completa (leer/decidir/ejecutar sin ese acotamiento) sigue sin empezar.<span class="tag">docs/adr/0001-tool-calling-architecture.md</span></li>
+      <li><b>Medir fallo de qwen2.5:7b</b> en tool-calling local ahora que es el fallback de backend dentro del propio agente (NVIDIA caido) -- 1-2 semanas de datos antes de confiar sin supervision.<span class="tag">ADR-0001</span></li>
+      <li><b>Garmin API</b> - rate-limit 429 pendiente de resolver en Alpha50.<span class="tag">SKILL.md v1.5.0</span></li>
+      <li><b>verify=False todavia en core/dashboard.py</b> (si se quito en mando_tasks.py el 04/07/2026).<span class="tag">SKILL.md v1.5.0</span></li>
+      <li><b>Contrasenas en texto plano</b> - POSTGRES_PASSWORD (12345) y GARMIN_PASSWORD en .env.<span class="tag">SKILL.md v1.5.0</span></li>
+      <li><b>Registro Alpha50 del 2026-07-03 perdido</b> (dia con dolor en el costado) por el bug de JARVIS_URL - pendiente que decidas si se reconstruye a mano como completado o parcial.<span class="tag">SKILL.md v1.5.0</span></li>
+      <li><b>Sacar del tailnet</b> los moviles del coordinador y el guardia municipal - sin convenio activo.<span class="tag">SKILL.md v1.5.0</span></li>
+      <li><b>mando-api sin autenticacion propia</b> - depende solo de estar en la tailnet de Tailscale.<span class="tag">SKILL.md v1.5.0</span></li>
+      <li><b>Drive search</b> - escapar comillas en la query de busqueda por nombre.<span class="tag">SKILL.md v1.5.0</span></li>
+      <li><b>Reentrenar el clasificador</b> de intents con los ejemplos acumulados de /aprende -- ahora tiene menos urgencia al ser solo fallback, pero sigue siendo la red de seguridad si el agente falla.<span class="tag">SKILL.md v1.5.0</span></li>
+      <li><b>edit_code se salto el paso de confirmacion previa</b> que el ADR-0001 sugeria para esta fase ("propone el diff, confirma por Telegram"). Se fue directo al commit-como-mecanismo-de-reversion -- decision explicita de Juan Pablo. Revisar si conviene anadir el paso intermedio mas adelante.<span class="tag">05/07/2026</span></li>
+      <li><b>OpenClaw vs tools nuevas de Jarvis</b> -- decidido mantener OpenClaw como frontend (no sustituirlo), pero falta repartir responsabilidades: hay solape potencial entre lo que OpenClaw puede hacer directo (multi-canal, shell, navegador) y las tools nuevas de Jarvis (send_telegram_message, send_email).<span class="tag">05/07/2026</span></li>
+    </ul>
+  </div>
+</div>
+
+<script>
+const GROUPS = {
+  entrada:  {color:"#3b82f6", label:"Entrada"},
+  gateway:  {color:"#a855f7", label:"Gateway / API"},
+  decision: {color:"#ec4899", label:"Motor de decision"},
+  llm:      {color:"#14b8a6", label:"Backend LLM"},
+  dominio:  {color:"#f59e0b", label:"Modulo de dominio"},
+  infra:    {color:"#64748b", label:"Almacenamiento / Infra / Externo"},
+};
+
+const nodes = [
+  {id:"telegram", x:20, y:30, w:220, h:64, group:"entrada", status:"ok",
+    title:"Telegram Bot", sub:"Figaro - relay.py - systemd",
+    detail:"Bot de python-telegram-bot corriendo en Figaro (100.78.43.76). Recibe texto libre (chat) y el comando /audit RUTA (lanza auditoria). Gestion: systemctl restart jarvis-relay (NO pm2)."},
+  {id:"chat_local", x:20, y:134, w:220, h:64, group:"entrada", status:"ok",
+    title:"Chat local", sub:"Jarvis Chat.bat - scripts/chat.py",
+    detail:"Interfaz de linea de comandos en el PC local. Usa generate_stream() de core/llm.py. Es donde Google Suite (Gmail/Calendar/Drive) funciona hoy - todavia no llega por Telegram. Desde 04/07/2026 los warnings de conexion van a logs/chat.log en vez de interrumpir la conversacion."},
+  {id:"openai_compat", x:20, y:238, w:220, h:64, group:"entrada", status:"ok",
+    title:"API OpenAI-compatible", sub:"api/openai_compat.py - prefix /v1",
+    detail:"Router montado en api/main.py bajo /v1 que expone Jarvis con el formato de la API de OpenAI, para clientes que ya hablan ese protocolo."},
+  {id:"openclaw", x:20, y:342, w:220, h:64, group:"entrada", status:"ok",
+    title:"OpenClaw", sub:"framework externo (self-hosted)",
+    detail:"Asistente personal open-source (MIT), self-hosted: multi-canal (WhatsApp, Telegram, Slack, Discord, Signal, iMessage, Matrix, etc.), Control UI web, shell y navegador propios. Ya conectado a Jarvis: api/openai_compat.py maneja explicitamente el rol 'openclaw-control-ui' -- OpenClaw usa a Jarvis como cerebro (memoria, Centro de Mando, auditor) a traves de /v1/chat/completions. Decision 05/07/2026: mantenerlo como frontend y aprovechar mas sus capacidades (canales, shell, navegador) en vez de sustituirlo por desarrollo propio. Pendiente: repartir responsabilidades con las tools nuevas de Jarvis (send_telegram_message, send_email) para no solapar."},
+
+  {id:"relay_queue", x:300, y:30, w:220, h:64, group:"gateway", status:"ok",
+    title:"Relay Figaro", sub:"queue.db (SQLite) - /queue/pending - /notify",
+    detail:"Cola offline en /opt/jarvis-relay/. Si el PC esta apagado, encola el mensaje (drain_queue al arrancar + polling cada 60s). Tres bugs de produccion corregidos el 04/07/2026: (1) default de JARVIS_URL era una IP publica -- el relay podia salir a internet en vez de Tailscale, corregido a 100.127.159.59; (2) /queue/ack tiraba la respuesta procesada en vez de reenviarla a Telegram, un mensaje encolado offline se procesaba pero nunca se veia; (3) /notify no existia -- auditor y Alpha50 llevaban tiempo avisando contra un 404 silencioso. NUEVO 05/07/2026: send_telegram_message() en connectors/relay_client.py reusa /notify para que el agente pueda mandar un Telegram a demanda (tool send_telegram_message), no solo notificaciones automaticas -- implementado pero sin probar en real todavia."},
+  {id:"api_main", x:300, y:150, w:220, h:80, group:"gateway", status:"ok",
+    title:"Jarvis API", sub:"api/main.py - FastAPI :3000",
+    detail:"Hub central. Middleware ApiKeyMiddleware exige header X-Jarvis-Key en produccion desde el 04/07/2026 (si JARVIS_API_KEY no esta definida, queda abierta con warning en log). Rutas clave: /chat (flujo intents), /chat/agent (flujo tool-calling), /audit/*, /aprende (protegida tambien desde 04/07/2026), /health (unica publica)."},
+
+  {id:"intent", x:580, y:90, w:220, h:70, group:"decision", status:"ok",
+    title:"Clasificador de Intents", sub:"core/intent.py + core/processor.py (FALLBACK)",
+    detail:"DECISION 05/07/2026 (explicita de Juan Pablo): deja de ser el camino principal y pasa a FALLBACK PERMANENTE -- solo se usa si core/agent.py lanza una excepcion (NVIDIA y Ollama caidos a la vez, o cualquier otro fallo). TF-IDF+SVM (config/intent_model.pkl) con fallback interno a ~40 regex, confianza >= 0.75. Sigue intacto, sin cambios de codigo -- toda la logica if/elif de processor.py que antes era 'el camino' ahora es la red de seguridad."},
+  {id:"agent", x:580, y:420, w:220, h:70, group:"decision", status:"ok",
+    title:"Tool-calling Agent", sub:"core/agent.py + core/tools.py (PRINCIPAL)",
+    detail:"ADR-0001 (2026-07-02). DECISION 05/07/2026: pasa a ser el camino PRINCIPAL para las 3 interfaces (Telegram, chat local, API) -- core/processor.py llama a agent.run() ANTES que al clasificador de intents, ya no hace falta llamar a /chat/agent a mano. Fase 1 (lectura), Fase 2 (escritura Centro de Mando, incluye complete_task nuevo) y Fase 2.5 (send_telegram_message, send_email, create_calendar_event, edit_code, query_alpha50_history) ya commiteadas. Fase 3 (autonomia total sobre el propio codigo de Jarvis) sigue sin empezar -- edit_code es un primer paso acotado, no Fase 3 completa. AVISO: switch de arquitectura verificado por lectura de codigo, todavia no probado en real contra Groq/NVIDIA/Ollama de verdad."},
+
+  {id:"groq", x:860, y:20, w:220, h:64, group:"llm", status:"ok",
+    title:"Groq API", sub:"llama-3.3-70b-versatile / qwen-qwq-32b",
+    detail:"Backend PRINCIPAL para chat general (core/llm.py), timeout 30s. Modelo de codigo (qwen-qwq-32b) si intent en {audit,code,remote_audit} o keywords en el prompt. Si falla, cae a NVIDIA y luego Ollama."},
+  {id:"nvidia", x:860, y:140, w:220, h:64, group:"llm", status:"ok",
+    title:"NVIDIA NIM", sub:"llama-3.3-70b-instruct / deepseek-v4-pro",
+    detail:"Secundario en el chat general (timeout 90s). PRINCIPAL para el motor de decision del tool-calling agent -- decision explicita de Juan Pablo, orden distinto al de llm.py. Reintenta una vez ante 503 (saturacion del tier gratis)."},
+  {id:"ollama", x:860, y:260, w:220, h:64, group:"llm", status:"ok",
+    title:"Ollama local", sub:"qwen2.5:7b - 127.0.0.1:11434",
+    detail:"Fallback universal sin internet, timeout 120s, num_ctx 4096. Unico backend que no depende de red. En tool-calling es menos fiable formando JSON de argumentos (7B sin fine-tuning de tools) -- el ADR pide medir su tasa de fallo real antes de confiar sin supervision."},
+  {id:"haiku_legacy", x:860, y:400, w:220, h:64, group:"llm", status:"legacy",
+    title:"Claude Haiku (historico)", sub:"ANTHROPIC_API_KEY en .env",
+    detail:"Documentado en versiones antiguas de CLAUDE.md como fallback si Ollama tardaba mas de 5s. En core/llm.py actual la cascada real es Groq - NVIDIA - Ollama; no hay ninguna llamada a Anthropic en el codigo ni se menciona en el SKILL.md v1.5.0. La clave sigue en .env pero parece sin uso -- confirmar si se puede retirar."},
+
+  {id:"memoria", x:1140, y:10, w:240, h:64, group:"dominio", status:"ok",
+    title:"Memoria / RAG", sub:"core/rag.py + core/active_memory.py",
+    detail:"Embeddings nomic-embed-text (768 dims) via Ollama /api/embed, keep_alive=1h. Cache LRU de 64 entradas (embed repetido = 0ms). search_memories(): prefiltro FTS espanol (<=400 candidatos) + coseno en Python, filtra similitud >= 0.35. store_memory() en background thread daemon, no bloquea la respuesta HTTP. Benchmark: 0.28s primera llamada, 0.11s con cache."},
+  {id:"mando", x:1140, y:125, w:240, h:64, group:"dominio", status:"ok",
+    title:"Centro de Mando", sub:"connectors/mando_tasks.py + mando_sync.py",
+    detail:"CRUD de tareas: add_task, update_task, delete_task, find_project_id. 21 proyectos activos en dashboard-data.json. mando_sync.py trae snapshot desde Figaro y lo guarda en Postgres. Bug critico resuelto 04/07/2026: server.js en Figaro solo tenia /estado -- las rutas /tareas nunca existieron en produccion pese a darse por documentadas, asi que esto recibia 404 en silencio en cada mensaje de chat. verify=False (TLS sin verificar) tambien quitado de las 4 llamadas."},
+  {id:"auditor", x:1140, y:240, w:240, h:64, group:"dominio", status:"ok",
+    title:"Auditor", sub:"scanner, batcher, runner, synthesizer",
+    detail:"Modulo completo, usa core/llm.generate(intent='audit') -- cadena Groq - NVIDIA - Ollama, ya no tiene su propio ask_ollama(). auditor/allowed_paths.py (nuevo 04/07/2026) valida que la ruta a auditar este en config/repo_aliases.json o en la carpeta temporal de auditorias remotas -- antes aceptaba cualquier ruta absoluta que el LLM decidiera pasar, con la API sin autenticar eso era lectura arbitraria de disco. Resultado: EXECUTIVE_SUMMARY.md + notificacion Telegram via /notify."},
+  {id:"remote_audit", x:1140, y:355, w:240, h:64, group:"dominio", status:"ok",
+    title:"Auditoria remota", sub:"connectors/remote_audit.py",
+    detail:"Copia codigo de Figaro via SSH (find + scp) a C:\\tmp\\remote_audit, filtrando a .py/.js/.json/.md/.html y excluyendo node_modules, __pycache__, *.db, *.log. Clave dedicada sin contrasena (FIGARO_SSH_KEY). shlex.quote() en el find remoto previene inyeccion de comandos; validacion relative_to() bloquea path traversal. Pendiente no critico: StrictHostKeyChecking=no, vulnerable a MITM si alguien suplanta la IP de Figaro."},
+  {id:"google", x:1140, y:470, w:240, h:64, group:"dominio", status:"ok",
+    title:"Google Suite", sub:"connectors/google_tools.py",
+    detail:"Gmail + Calendar + Drive via OAuth2, app en modo Production (token no caduca). Cuenta jarvis.gienini2.1009@gmail.com con Calendar y Drive de gienini2@gmail.com compartidos. get_upcoming_events() busca en todos los calendarios. ACTUALIZADO 05/07/2026: send_email() y create_event() ya existian en el codigo pero solo create_event funcionaba (via flujo de intents); ahora AMBAS estan conectadas como tools reales del agente (send_email, create_calendar_event) ademas de las de lectura (list_recent_emails, search_gmail, list_calendar_events, search_files_drive). RESUELTO ARQUITECTONICAMENTE 05/07/2026 (noche): al ser el agente el camino PRINCIPAL para las 3 interfaces via core/processor.py, Google ya no depende de estar en 'chat local' -- Telegram pasa por el mismo process()/agent.run() y llega a las mismas tools. Sigue pendiente PROBARLO en real desde Telegram (nunca se ha enviado un correo o creado un evento disparado desde el bot). Nota de seguridad: el scope OAuth gmail.modify ya esta en uso real desde que send_email es una tool, no solo de sobra."},
+  {id:"alpha50", x:1140, y:585, w:240, h:64, group:"dominio", status:"ok",
+    title:"Alpha50 (entrenamiento)", sub:"alpha50/agente_*.py + scheduler.py",
+    detail:"Metodo Fitness Alpha50 (12 semanas) cruzado con Garmin Forerunner 165. scheduler.py corre como servicio NSSM independiente (Alpha50Scheduler), NO es parte del proceso JarvisAPI. Comandos Telegram SIN barra (alpha50 ahora/estado/semana/tendencia/nivel). Estado de sesion persistido en alpha50_cronologia.db, no en memoria -- aislado de Postgres/RAG. NUEVO 05/07/2026: alpha50/history_reader.py (solo lectura) + tool query_alpha50_history en core/tools.py -- el agente ya puede responder sobre entrenamientos pasados en una conversacion general (Telegram, chat local), no solo dentro del flujo especifico de Alpha50. Deliberadamente NO alimenta el RAG central (no hay embeddings de este historial en Postgres) -- si se quiere eso sera un script de ingesta aparte. Bug encontrado 04/07/2026: el registro del 2026-07-03 (dia con dolor en el costado) se perdio por la interaccion entre el bug de JARVIS_URL y el manejo de estado de sesion -- pendiente decidir si se reconstruye a mano. Rate-limit 429 de Garmin tambien pendiente."},
+  {id:"aider_editor", x:1140, y:700, w:240, h:64, group:"dominio", status:"prog",
+    title:"Editor de codigo (aider)", sub:"core/tools.py: edit_code()",
+    detail:"NUEVO 05/07/2026. Tool edit_code(path, instruction) del agente de tool-calling -- invoca aider (python -m aider) con --auto-commits forzado por llamada (override puntual del auto-commits:false de .aider.conf.yml, pensado para uso manual). Validado contra el mismo whitelist que start_audit (auditor/allowed_paths.py). Exige que la ruta sea un repo git; si no, falla en vez de editar sin poder revertir. Cada llamada = un commit independiente, reversible con 'git revert'. CORREGIDO 05/07/2026 (noche): con el agente ya como camino principal, edit_code es alcanzable desde CUALQUIER interfaz (Telegram, chat local, API) diciendolo en lenguaje natural -- antes solo se podia llamar via /chat/agent a mano. Implementado y verificado sintacticamente, pero NO probado contra aider/Groq reales todavia -- por eso sigue en curso, no activo. Nota: se salto el paso de confirmacion previa que el ADR-0001 sugeria para esta fase -- decision explicita de Juan Pablo (05/07/2026)."},
+
+  {id:"postgres", x:1440, y:10, w:260, h:64, group:"infra", status:"ok",
+    title:"PostgreSQL local", sub:"127.0.0.1:5432 - db jarvis",
+    detail:"jarvis_user - tablas: conversations, tasks, task_context, summaries, projects, intents, memories (FTS espanol), mando_snapshots. Conectar siempre con -h 127.0.0.1. Connection pool SimpleConnectionPool(minconn=1, maxconn=10) en core/db.py (wrapper _PooledConn transparente). PGVECTOR: script listo en scripts/migrate_pgvector.sql (CREATE EXTENSION vector + columna vector(768) + indice HNSW) y core/rag.py YA REESCRITO para usar el operador &lt;=&gt; en vez de coseno en Python -- NO EJECUTADO todavia, requiere correrlo a mano contra Postgres (necesito superusuario/psql en tu maquina, no tengo conexion directa desde esta sesion). Hasta que se ejecute el script, la columna 'embedding' sigue siendo float4[] y el core/rag.py nuevo FALLARIA si se despliega antes de tiempo -- no reiniciar JarvisAPI hasta correr el SQL. La DB sigue llamada 'jarvis' -- script de creacion de 'jarvis_v2' listo en scripts/create_jarvis_v2_db.ps1, tampoco ejecutado. POSTGRES_PASSWORD sigue en texto plano (12345)."},
+  {id:"auditor_db", x:1440, y:110, w:260, h:64, group:"infra", status:"ok",
+    title:"auditor.db", sub:"SQLite - auditor/auditor.db",
+    detail:"Base independiente de Postgres, propia del modulo auditor: audit_jobs, audit_phases, audit_summaries."},
+  {id:"mando_api", x:1440, y:210, w:260, h:64, group:"infra", status:"ok",
+    title:"mando-api", sub:"Figaro - PM2 - :10003",
+    detail:"Reescrito 04/07/2026 con las 4 rutas /tareas que nunca habian llegado a produccion (antes solo existia /estado). Apunta a la fuente de verdad real: /var/www/dashboard/dashboard-data.json (no vive dentro de /opt/mando-api/, ahi solo esta estado.json). Escritura atomica (.tmp + rename). Confirmado con curl tras el deploy. Pendiente: sigue sin autenticacion propia, depende solo de estar en la tailnet. Gestion: pm2 restart mando-api (NO systemctl)."},
+  {id:"figaro", x:1440, y:310, w:260, h:64, group:"infra", status:"ok",
+    title:"Figaro (Debian)", sub:"Tailscale 100.78.43.76",
+    detail:"Maquina de produccion: relay de Telegram (systemd), mando-api (PM2) y Bitacola en produccion (PM2, 6 procesos). Tunel Tailscale hacia el PC local (100.127.159.59). Pendiente: sacar del tailnet dos moviles ajenos (coordinador y guardia municipal) sin convenio activo."},
+  {id:"hetzner", x:1440, y:410, w:260, h:64, group:"infra", status:"ok",
+    title:"Hetzner VPS", sub:"ssh ting - 204.168.146.236",
+    detail:"Backup, tingbot y copia beta de Bitacola. Antigua fuente de memorias de Jarvis v1 (2.573 memorias ya migradas)."},
+  {id:"google_cloud", x:1440, y:510, w:260, h:64, group:"infra", status:"ok",
+    title:"Google Cloud", sub:"Gmail - Calendar - Drive",
+    detail:"Servicios externos de Google consumidos via OAuth2 por connectors/google_tools.py."},
+  {id:"garmin", x:1440, y:595, w:260, h:64, group:"infra", status:"ok",
+    title:"Garmin Connect", sub:"API externa",
+    detail:"Fuente de datos de entrenamiento para Alpha50. Credenciales en .env (texto plano, pendiente evaluar secret manager). Rate-limit 429 pendiente de resolver."},
+  {id:"jarvis_v2", x:1440, y:690, w:260, h:70, group:"infra", status:"ok",
+    title:"Memoria historica", sub:"jarvis_v2/ - exports Claude/Gemini/ChatGPT",
+    detail:"Pipeline de ingesta (scripts/ingest_all.py --source claude|gemini|chatgpt, idempotente por source/file, soporta --force). Confirmado completo: claude 277 + gemini 913 + chatgpt 7328 = unas 8500 memorias ingestadas en total. Ojo: no confundir con la DB 'jarvis_v2' pendiente de crear en Postgres (nodo Memoria/RAG) -- son dos cosas distintas con el mismo nombre."},
+];
+
+const edges = [
+  ["telegram","relay_queue"],
+  ["chat_local","api_main"],
+  ["openai_compat","api_main"],
+  ["relay_queue","api_main"],
+  ["api_main","agent"],
+  ["api_main","intent", true, "fallback si agent falla"],
+  ["intent","groq", true],
+  ["intent","nvidia", true],
+  ["intent","ollama", true],
+  ["agent","nvidia"],
+  ["agent","ollama"],
+  ["intent","memoria", true],
+  ["intent","mando", true],
+  ["intent","auditor", true],
+  ["intent","remote_audit", true],
+  ["intent","google", true],
+  ["agent","memoria"],
+  ["agent","mando"],
+  ["agent","google"],
+  ["agent","auditor"],
+  ["agent","alpha50", true, "query_alpha50_history"],
+  ["memoria","postgres"],
+  ["mando","mando_api"],
+  ["mando_api","figaro"],
+  ["auditor","auditor_db"],
+  ["auditor","telegram", true, "notifica"],
+  ["remote_audit","figaro", true, "SSH"],
+  ["google","google_cloud"],
+  ["alpha50","garmin"],
+  ["jarvis_v2","postgres"],
+  ["figaro","hetzner", true, "backup"],
+  ["openclaw","openai_compat"],
+  ["agent","telegram", true, "send_telegram_message"],
+  ["agent","aider_editor"],
+];
+
+const statusMeta = {
+  ok:     {color:"var(--ok)", cls:"b-ok", label:"ACTIVO"},
+  prog:   {color:"var(--prog)", cls:"b-prog", label:"EN CURSO"},
+  pend:   {color:"var(--pend)", cls:"b-pend", label:"PENDIENTE"},
+  legacy: {color:"var(--legacy)", cls:"b-legacy", label:"LEGADO"},
+};
+
+const canvas = document.getElementById("canvas");
+const svg = document.getElementById("edges");
+const byId = {};
+
+nodes.forEach(function(n){
+  byId[n.id]=n;
+  const el = document.createElement("div");
+  el.className="node"; el.id="n-"+n.id;
+  el.style.left=n.x+"px"; el.style.top=n.y+"px"; el.style.width=n.w+"px"; el.style.height=n.h+"px";
+  const sm = statusMeta[n.status];
+  const gc = GROUPS[n.group].color;
+  el.innerHTML =
+    '<div class="bar" style="background:'+gc+'"></div>' +
+    '<span class="badge '+sm.cls+'">'+sm.label+'</span>' +
+    '<div class="body">' +
+      '<div class="title">'+n.title+'</div>' +
+      '<div class="sub">'+n.sub+'</div>' +
+    '</div>';
+  el.addEventListener("click", function(){ selectNode(n.id); });
+  canvas.appendChild(el);
+});
+
+function pathBetween(a,b){
+  const sx=a.x+a.w, sy=a.y+a.h/2;
+  const tx=b.x, ty=b.y+b.h/2;
+  const dx=Math.max(60,(tx-sx)/2);
+  return "M"+sx+","+sy+" C"+(sx+dx)+","+sy+" "+(tx-dx)+","+ty+" "+tx+","+ty;
+}
+
+edges.forEach(function(e){
+  const a=e[0], b=e[1], dashed=e[2], label=e[3];
+  const p = document.createElementNS("http://www.w3.org/2000/svg","path");
+  p.setAttribute("d", pathBetween(byId[a], byId[b]));
+  p.setAttribute("class","edge"+(dashed?" dashed":""));
+  p.setAttribute("marker-end","url(#arrow)");
+  p.setAttribute("data-a",a); p.setAttribute("data-b",b);
+  svg.appendChild(p);
+});
+
+function selectNode(id){
+  document.querySelectorAll(".node").forEach(function(el){ el.classList.remove("selected"); });
+  document.getElementById("n-"+id).classList.add("selected");
+  document.querySelectorAll(".edge").forEach(function(e){
+    const hit = e.getAttribute("data-a")===id || e.getAttribute("data-b")===id;
+    e.classList.toggle("hi", hit);
+  });
+  const n = byId[id];
+  const sm = statusMeta[n.status];
+  document.getElementById("detail").innerHTML =
+    '<h2>'+n.title+'</h2>' +
+    '<div class="path">'+n.sub+'</div>' +
+    '<span class="st" style="color:'+sm.color+'; background:'+sm.color+'22;">'+sm.label+'</span>' +
+    '<p>'+n.detail+'</p>' +
+    '<hr>' +
+    '<p class="hint">Grupo: '+GROUPS[n.group].label+'</p>';
+}
+
+const counts = {ok:0,prog:0,pend:0,legacy:0};
+nodes.forEach(function(n){ counts[n.status]++; });
+document.getElementById("cnt-ok").textContent=counts.ok;
+document.getElementById("cnt-prog").textContent=counts.prog;
+document.getElementById("cnt-pend").textContent=counts.pend;
+document.getElementById("cnt-legacy").textContent=counts.legacy;
+
+document.querySelectorAll(".chip").forEach(function(chip){
+  chip.addEventListener("click", function(){
+    const f = chip.getAttribute("data-f");
+    if(f==="all"){
+      document.querySelectorAll(".chip").forEach(function(c){ c.classList.remove("off"); });
+      document.querySelectorAll(".node").forEach(function(el){ el.classList.remove("dim"); });
+      return;
+    }
+    chip.classList.toggle("off");
+    const active = Array.prototype.slice.call(document.querySelectorAll(".chip[data-f]:not(.off)"))
+      .map(function(c){ return c.getAttribute("data-f"); }).filter(function(x){ return x!=="all"; });
+    nodes.forEach(function(n){
+      const el = document.getElementById("n-"+n.id);
+      if(active.length===0){ el.classList.remove("dim"); return; }
+      el.classList.toggle("dim", active.indexOf(n.status)===-1);
+    });
+  });
+});
+</script>
+</body>
+</html>

@@ -34,9 +34,13 @@ def load_data() -> list:
         _cache["ts"] = now
         return data
     except Exception as e:
-        log.warning(f"No se pudo obtener el Centro de Mando de Figaro: {e}")
+        # Actualiza ts aunque falle -- si no, con Figaro caido esto reintenta
+        # (y relogea el warning) en CADA mensaje del chat en vez de una vez
+        # cada _CACHE_TTL segundos.
+        _cache["ts"] = now
         if _cache["data"] is not None:
             return _cache["data"]  # servir cache vieja antes que fallar del todo
+        log.warning(f"No se pudo obtener el Centro de Mando de Figaro: {e}")
         return []
 
 

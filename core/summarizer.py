@@ -9,7 +9,7 @@ def create_summary():
 
     text = ""
 
-    for role, message in messages:
+    for role, message, _ in messages:
         text += f"{role}: {message}\n"
 
     prompt = f"""

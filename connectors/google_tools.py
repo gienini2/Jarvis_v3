@@ -88,22 +88,30 @@ def search_emails(query: str, max_results: int = 5) -> list[dict]:
 def get_upcoming_events(max_results: int = 10) -> list[dict]:
     service = get_google_service("calendar", "v3")
     now = datetime.now(timezone.utc).isoformat()
-    events_result = service.events().list(
-        calendarId="primary",
-        timeMin=now,
-        maxResults=max_results,
-        singleEvents=True,
-        orderBy="startTime",
-    ).execute()
-    events = events_result.get("items", [])
-    return [
-        {
-            "summary": e.get("summary", "Sin título"),
-            "start": e["start"].get("dateTime", e["start"].get("date")),
-            "end": e["end"].get("dateTime", e["end"].get("date")),
-        }
-        for e in events
-    ]
+    
+    # Obtener todos los calendarios
+    calendars = service.calendarList().list().execute()
+    
+    all_events = []
+    for cal in calendars.get("items", []):
+        events_result = service.events().list(
+            calendarId=cal["id"],
+            timeMin=now,
+            maxResults=max_results,
+            singleEvents=True,
+            orderBy="startTime",
+        ).execute()
+        for e in events_result.get("items", []):
+            all_events.append({
+                "summary": e.get("summary", "Sin título"),
+                "start": e["start"].get("dateTime", e["start"].get("date")),
+                "end": e["end"].get("dateTime", e["end"].get("date")),
+                "calendar": cal["summary"],
+            })
+
+    # Ordenar por fecha
+    all_events.sort(key=lambda x: x["start"])
+    return all_events[:max_results]
 
 
 def create_event(summary: str, start: str, end: str, description: str = "") -> bool:
@@ -159,12 +167,51 @@ def handle_google_request(intent_type: str, message: str) -> str:
         return f"Últimos correos:\n{lines}"
 
     elif intent_type == "google_calendar":
-        if any(w in message.lower() for w in ["crea", "añade", "agrega"]):
-            return "Para crear un evento necesito: título, fecha/hora de inicio y fin. ¿Me los das?"
+        msg_lower = message.lower()
+        
+        if any(w in msg_lower for w in ["crea", "añade", "agrega", "añadir", "agregar", "crear"]):
+            # Intentar extraer datos del mensaje con el LLM
+            from core.llm import generate
+            extraction_prompt = f"""Extrae del siguiente mensaje los datos para crear un evento de Google Calendar.
+    Responde SOLO con un JSON válido con estas claves exactas:
+    - "summary": título del evento (string)
+    - "start": fecha y hora inicio en formato ISO8601 con zona horaria, ejemplo: "2026-06-17T17:45:00+02:00"
+    - "end": fecha y hora fin en formato ISO8601 (si no se especifica, suma 1 hora al inicio)
+    - "description": descripción opcional (string vacío si no hay)
+
+    Fecha y hora actual: {datetime.now().astimezone().isoformat(timespec='minutes')}.
+    Calcula las referencias relativas ("hoy", "mañana", "este martes") con
+    respecto a esa fecha; no uses fechas de ejemplo ni supongas un año fijo.
+
+    Mensaje: "{message}"
+
+    Responde SOLO el JSON, sin explicaciones ni backticks."""
+
+            raw = generate(extraction_prompt)
+            
+            import json, re
+            try:
+                # Limpiar posibles backticks
+                clean = re.sub(r"```json|```", "", raw).strip()
+                data = json.loads(clean)
+                
+                ok = create_event(
+                    summary=data["summary"],
+                    start=data["start"],
+                    end=data["end"],
+                    description=data.get("description", ""),
+                )
+                if ok:
+                    return f"✅ Evento creado: '{data['summary']}' el {data['start'][:16].replace('T', ' a las ')}"
+                return "❌ No pude crear el evento en Google Calendar."
+            except Exception as e:
+                return f"❌ No pude interpretar los datos del evento: {e}\nRaw: {raw[:200]}"
+        
+        # Listar eventos
         events = get_upcoming_events(5)
         if not events:
             return "No hay eventos próximos en el calendario."
-        lines = "\n".join(f"- {e['start'][:16]} | {e['summary']}" for e in events)
+        lines = "\n".join(f"- {e['start'][:16]} | {e['summary']} ({e.get('calendar','')})" for e in events)
         return f"Próximos eventos:\n{lines}"
 
     elif intent_type == "google_drive":

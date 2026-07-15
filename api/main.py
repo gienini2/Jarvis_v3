@@ -4,9 +4,10 @@ import os
 import logging
 import httpx
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.processor import process
 from core.tasks import find_tasks_by_project, find_tasks_by_keyword, sync_tasks_from_json, add_task_context
@@ -18,12 +19,13 @@ from config.settings import settings
 from core.db import get_connection
 from core.rag import search_memories
 from api.openai_compat import router as openai_router
-from alpha50.scheduler import alpha50_intent_handler
+from netscan.api_routes import router as netscan_router
 
 os.environ["PYTHONUTF8"] = "1"
 log = logging.getLogger("jarvis")
 
 _RELAY_POLL_INTERVAL = 60
+
 
 
 async def _poll_relay():
@@ -39,17 +41,48 @@ async def _poll_relay():
 
 @asynccontextmanager
 async def lifespan(app):
-    n = drain_queue()
-    if n:
-        log.info(f"Cola drenada al arrancar: {n} mensajes procesados")
+    # El drain puede implicar llamadas LLM lentas. Arrancar la API primero es
+    # esencial tras encender/reanudar el portatil: /health y /chat no deben
+    # esperar a que se vacie la cola de Telegram.
+    startup_drain = asyncio.create_task(asyncio.to_thread(drain_queue))
     task = asyncio.create_task(_poll_relay())
     yield
-    task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await task
+    for background_task in (startup_drain, task):
+        background_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await background_task
 
 
 app = FastAPI(lifespan=lifespan)
+
+# Rutas que no requieren clave -- solo liveness check
+_PUBLIC_PATHS = {"/health"}
+
+
+class ApiKeyMiddleware(BaseHTTPMiddleware):
+    """Exige el header X-Jarvis-Key en todas las rutas salvo /health.
+
+    Si JARVIS_API_KEY no esta configurada en .env, no se bloquea nada (para no
+    romper un entorno de desarrollo recien clonado) pero se deja un warning en
+    el log al arrancar -- ver mas abajo.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path in _PUBLIC_PATHS or not settings.JARVIS_API_KEY:
+            return await call_next(request)
+        if request.headers.get("x-jarvis-key") != settings.JARVIS_API_KEY:
+            return JSONResponse(status_code=401, content={"error": "unauthorized"})
+        return await call_next(request)
+
+app.include_router(netscan_router)
+
+app.add_middleware(ApiKeyMiddleware)
+
+if not settings.JARVIS_API_KEY:
+    log.warning(
+        "JARVIS_API_KEY no configurada -- la API esta ABIERTA sin autenticacion. "
+        "Define JARVIS_API_KEY en .env para protegerla."
+    )
 
 app.include_router(openai_router, prefix="/v1")
 
@@ -84,8 +117,9 @@ async def audit_notify(job_id: int):
         text = text[:3800] + "\n\n…_(resumen truncado, ver EXECUTIVE_SUMMARY.md)_"
     message = f"✅ Auditoría completada — job_id={job_id}\n{job['repo_path']}\n\n{text}"
     try:
+        headers = {"X-Relay-Key": settings.RELAY_API_KEY} if settings.RELAY_API_KEY else {}
         async with httpx.AsyncClient(timeout=10) as client:
-            await client.post(f"{settings.RELAY_URL}/notify", json={"message": message})
+            await client.post(f"{settings.RELAY_URL}/notify", json={"message": message}, headers=headers)
     except Exception as e:
         log.warning(f"[notify] no se pudo mandar a Telegram: {e}")
     return {"status": "notified"}
@@ -93,12 +127,8 @@ async def audit_notify(job_id: int):
 
 @app.post("/chat")
 def chat(req: ChatRequest):
-    alpha50_resp = alpha50_intent_handler(req.message)
-    if alpha50_resp:
-        return JSONResponse(
-            content={"response": alpha50_resp, "intent": "alpha50"},
-            media_type="application/json; charset=utf-8",
-        )
+    # Alpha50 ya se resuelve dentro de process() (core/processor.py), común a
+    # todas las interfaces. No hace falta llamar al handler aquí también.
     response, intent_type = process(req.message)
     return JSONResponse(
         content={"response": response, "intent": intent_type},
@@ -114,6 +144,10 @@ def chat_agent(req: ChatRequest):
     si sustituye al clasificador de core/intent.py. Usa NVIDIA (llama-3.3-70b-instruct)
     como motor de decision, con fallback a qwen2.5 local si no hay internet.
     """
+    from core.mando_intents import handle_mando
+    reply = handle_mando(req.message)
+    if reply is not None:
+        return reply   # adapta al formato de respuesta actual del endpoint
     from core.agent import run
     try:
         response = run(req.message)

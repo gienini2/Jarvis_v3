@@ -19,15 +19,12 @@ def save_message(role: str, message: str, task_id=None):
 def get_recent_messages(limit=10):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT role, message
+    cur.execute("""
+        SELECT role, message, created_at
         FROM conversations
         ORDER BY id DESC
         LIMIT %s
-        """,
-        (limit,),
-    )
+    """, (limit,))
     rows = cur.fetchall()
     cur.close()
     conn.close()

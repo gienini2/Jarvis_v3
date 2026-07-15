@@ -189,4 +189,22 @@ def get_task_contexts_bulk(mando_keys: list[str]) -> dict[str, list[dict]]:
         """,
         (mando_keys,),
     )
-   
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    result: dict[str, list[dict]] = {}
+    for key, type_, content in rows:
+        result.setdefault(key, []).append({"type": type_, "content": content})
+    return result
+
+
+def _row_to_dict(r) -> dict:
+    return {
+        "id": r[0],
+        "mando_key": r[1],
+        "title": r[2],
+        "status": r[3],
+        "priority": r[4],
+        "project": r[5],
+        "project_id": r[6],
+    }

@@ -119,6 +119,13 @@ _MANDO_DELETE = [
     r"(?:borra?|elimina?)\s+(?:del?\s+)?(?:proyecto\s+)?(.+?)\s+(?:la\s+tarea\s+)?(.+)",
 ]
 
+_NETSCAN = [
+    r"(?:escanea?|escáneame?|escaneame?|audita?|analiza?|revisa?)\s+(?:mi\s+|la\s+|esta\s+)?(?:red|wifi|wi-fi)\b(.*)",
+    r"(?:qué|que|quién|quien)\s+(?:hay|está|esta|dispositivos?)\s+(?:conectad[oa]s?\s+)?(?:en|a)\s+(?:mi\s+|la\s+|esta\s+)?(?:red|wifi|wi-fi)\b(.*)",
+    r"(?:busca?|detecta?)\s+(?:vulnerabilidades?|dispositivos?)\s+(?:en\s+)?(?:mi\s+)?(?:red|wifi|wi-fi)\b(.*)",
+    r"(?:escaneo|auditoría|auditoria)\s+de\s+red\b(.*)",
+]
+
 _AUDIT = [
     r"(?:audita?|analiza?|revisa?)\s+(?:el\s+)?(?:repo|repositorio|proyecto|código)\s+(.+)",
     r"(?:audita?|analiza?)\s+(.+)",
@@ -247,6 +254,24 @@ def classify(message: str) -> Intent:
                 task_ref = m.group(2).strip().rstrip("?.,!")
             project_id = _resolve_project(project_raw) if project_raw else None
             return Intent(type="mando_delete_task", task_ref=task_ref, project_ref=project_id, confidence=0.85)
+    for pattern in _NETSCAN:
+        m = re.search(pattern, msg, re.IGNORECASE)
+        if m:
+            cidr = re.search(r"\b\d{1,3}(?:\.\d{1,3}){3}/\d{1,2}\b", msg)
+            low = msg.lower()
+            want_vuln = bool(re.search(r"vulnerab|cve|nse|explota|inseguro", low))
+            payload = {
+                "subnet": cidr.group(0) if cidr else "",
+                "fast": bool(re.search(r"\brápid|\brapid|\bfast\b", low)),
+                # 'busca vulnerabilidades' -> scripts NSE defensivos
+                "nse_scripts": "vuln,safe" if want_vuln else None,
+                "with_udp": bool(re.search(r"\budp\b|snmp|dns\b|mdns", low)),
+                "with_os": bool(re.search(r"sistema operativo|\bos\b|qué so|que so", low)),
+                "with_traceroute": bool(re.search(r"traceroute|ruta|saltos|camino", low)),
+                "host_discovery": "aggressive" if re.search(r"a fondo|agresiv|exhaustiv|profund", low) else "default",
+            }
+            return Intent(type="netscan", payload=payload, confidence=0.9)
+
     for pattern in _REMOTE_AUDIT:
         m = re.search(pattern, msg, re.IGNORECASE)
         if m:

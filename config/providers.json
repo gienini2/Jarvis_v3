@@ -1,0 +1,258 @@
+{
+  "schema_version": 2,
+  "selection": {
+    "defaults": {
+      "role": "general",
+      "stream": false,
+      "min_context": 0
+    },
+    "intent_roles": {
+      "audit": "code",
+      "code": "code",
+      "remote_audit": "code",
+      "reasoning": "reasoning"
+    },
+    "role_defaults": {
+      "general": {
+        "min_context": 0
+      },
+      "code": {
+        "min_context": 0
+      },
+      "reasoning": {
+        "min_context": 0
+      },
+      "tools": {
+        "min_context": 0
+      }
+    }
+  },
+  "backend_labels": {
+    "groq": "groq",
+    "nvidia": "nvidia",
+    "ollama": "qwen-local",
+    "kimi": "kimi"
+  },
+  "providers": {
+    "groq": {
+      "priority": 100,
+      "enabled": true,
+      "models": [
+        {
+          "name": "openai/gpt-oss-120b",
+          "display_name": "GPT-OSS-120B",
+          "roles": ["general", "tools", "reasoning"],
+          "priority": 100,
+          "context": 131072,
+          "reasoning": 9,
+          "coding": 8,
+          "speed": 10,
+          "tools": true,
+          "stream": false,
+          "vision": false,
+          "embeddings": false
+        },
+        {
+          "name": "llama-3.3-70b-versatile",
+          "display_name": "Llama-3.3-70B",
+          "roles": ["general", "tools"],
+          "priority": 90,
+          "context": 131072,
+          "reasoning": 8,
+          "coding": 7,
+          "speed": 8,
+          "tools": true,
+          "stream": false,
+          "vision": false,
+          "embeddings": false
+        },
+        {
+          "name": "qwen/qwen3-32b",
+          "display_name": "Qwen3-32B",
+          "roles": ["code", "reasoning", "tools"],
+          "priority": 85,
+          "context": 131072,
+          "reasoning": 8,
+          "coding": 8,
+          "speed": 8,
+          "tools": true,
+          "stream": false,
+          "vision": false,
+          "embeddings": false
+        }
+      ]
+    },
+    "nvidia": {
+      "priority": 90,
+      "enabled": true,
+      "models": [
+        {
+          "name": "meta/llama-3.3-70b-instruct",
+          "display_name": "Llama-3.3-70B",
+          "roles": ["general", "tools"],
+          "priority": 90,
+          "context": 131072,
+          "reasoning": 8,
+          "coding": 7,
+          "speed": 7,
+          "tools": true,
+          "stream": false,
+          "vision": false,
+          "embeddings": false
+        },
+        {
+          "name": "deepseek-ai/deepseek-v4-pro",
+          "display_name": "DeepSeek V4 Pro",
+          "roles": ["code", "reasoning", "long_context", "tools"],
+          "priority": 95,
+          "context": 1000000,
+          "reasoning": 9,
+          "coding": 10,
+          "speed": 6,
+          "tools": true,
+          "stream": false,
+          "vision": false,
+          "embeddings": false
+        },
+        {
+          "name": "qwen/qwen3-235b-a22b",
+          "display_name": "Qwen3-235B-A22B",
+          "roles": ["general", "code", "reasoning"],
+          "priority": 88,
+          "context": 131072,
+          "reasoning": 9,
+          "coding": 8,
+          "speed": 6,
+          "tools": false,
+          "stream": false,
+          "vision": false,
+          "embeddings": false
+        },
+        {
+          "name": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+          "display_name": "Nemotron Ultra",
+          "roles": ["reasoning", "long_context", "tools"],
+          "priority": 86,
+          "context": 131072,
+          "reasoning": 10,
+          "coding": 8,
+          "speed": 5,
+          "tools": true,
+          "stream": false,
+          "vision": false,
+          "embeddings": false
+        }
+      ]
+    },
+    "ollama": {
+      "priority": 50,
+      "enabled": true,
+      "models": [
+        {
+          "name": "qwen2.5:7b",
+          "display_name": "qwen2.5",
+          "roles": ["general", "code", "tools"],
+          "priority": 80,
+          "context": 32768,
+          "reasoning": 6,
+          "coding": 7,
+          "speed": 6,
+          "tools": true,
+          "stream": true,
+          "vision": false,
+          "embeddings": false
+        },
+        {
+          "name": "deepseek-r1:8b",
+          "display_name": "DeepSeek-R1",
+          "roles": ["reasoning", "code", "tools"],
+          "priority": 75,
+          "context": 128000,
+          "reasoning": 8,
+          "coding": 7,
+          "speed": 5,
+          "tools": true,
+          "stream": true,
+          "vision": false,
+          "embeddings": false
+        },
+        {
+          "name": "phi4",
+          "display_name": "Phi-4",
+          "roles": ["general", "reasoning"],
+          "priority": 60,
+          "context": 16000,
+          "reasoning": 7,
+          "coding": 6,
+          "speed": 6,
+          "tools": false,
+          "stream": true,
+          "vision": false,
+          "embeddings": false
+        },
+        {
+          "name": "gemma3",
+          "display_name": "Gemma 3",
+          "roles": ["general", "vision"],
+          "priority": 55,
+          "context": 128000,
+          "reasoning": 7,
+          "coding": 6,
+          "speed": 6,
+          "tools": false,
+          "stream": true,
+          "vision": true,
+          "embeddings": false
+        }
+      ]
+    },
+    "kimi": {
+      "priority": 80,
+      "enabled": false,
+      "models": [
+        {
+          "name": "kimi-k2.7-code-highspeed",
+          "display_name": "Kimi K2.7 Code Highspeed",
+          "roles": ["code", "reasoning", "long_context", "tools", "vision"],
+          "priority": 95,
+          "context": 256000,
+          "reasoning": 10,
+          "coding": 10,
+          "speed": 8,
+          "tools": true,
+          "stream": true,
+          "vision": true,
+          "embeddings": false
+        },
+        {
+          "name": "kimi-k2.6",
+          "display_name": "Kimi K2.6",
+          "roles": ["general", "reasoning", "long_context", "tools", "vision"],
+          "priority": 90,
+          "context": 256000,
+          "reasoning": 10,
+          "coding": 9,
+          "speed": 7,
+          "tools": true,
+          "stream": true,
+          "vision": true,
+          "embeddings": false
+        }
+      ]
+    }
+  },
+  "model_fields": {
+    "name": "ID exacto que acepta la API del proveedor. Es el unico campo que el proveedor envia como model.",
+    "display_name": "Nombre humano opcional para debug.",
+    "roles": "Capacidades funcionales: general, code, reasoning, tools, vision, long_context, embeddings.",
+    "priority": "Prioridad manual del modelo dentro del proveedor. Mayor gana.",
+    "context": "Ventana de contexto maxima en tokens.",
+    "reasoning": "Valor manual 0-10 para ordenar tareas de razonamiento.",
+    "coding": "Valor manual 0-10 para ordenar tareas de codigo.",
+    "speed": "Valor manual 0-10 para preferir latencia baja.",
+    "tools": "true si soporta tool-calling compatible con Jarvis.",
+    "stream": "true si soporta streaming.",
+    "vision": "true si acepta entradas visuales.",
+    "embeddings": "true si genera embeddings."
+  }
+}

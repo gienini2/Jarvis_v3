@@ -23,16 +23,19 @@ Frases soportadas (ejemplos):
 El proyecto debe ser un ID de un solo token (tingbot, declaracion-renta,
 opos-mataro…) o un alias que resuelva find_project_id().
 """
-import os
 import re
 import difflib
 import unicodedata
 
 import requests
 
+from config.settings import settings
 from connectors.mando_tasks import add_task, update_task, delete_task, find_project_id
 
-MANDO_API = os.getenv("MANDO_API_URL", "").rstrip("/")
+# Antes: os.getenv("MANDO_API_URL") -- pero el .env lo carga Pydantic en settings,
+# NO en el entorno del proceso, asi que salia "" y _get_tasks pegaba a "/tareas"
+# (URL invalida) -> update/delete/priority por /chat/agent fallaban en silencio.
+MANDO_API = (settings.MANDO_API_URL or "").rstrip("/")
 
 PRIORITY_MAP = {
     "alta": "high", "urgente": "high", "high": "high",

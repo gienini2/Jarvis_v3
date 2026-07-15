@@ -1,10 +1,7 @@
 import logging
 import requests
-import urllib3
 
 from connectors.mando_tasks import list_projects
-
-urllib3.disable_warnings()
 
 log = logging.getLogger("jarvis.dashboard")
 
@@ -46,7 +43,7 @@ def load_data() -> list:
 
 def get_estado() -> dict:
     try:
-        res = requests.get(ESTADO_URL, timeout=5, verify=False)
+        res = requests.get(ESTADO_URL, timeout=5)
         res.raise_for_status()
         return res.json()
     except Exception:
@@ -59,7 +56,6 @@ def post_estado(estado: dict) -> bool:
             ESTADO_URL,
             json=estado,
             timeout=5,
-            verify=False,
             headers={"Content-Type": "application/json"},
         )
         return res.ok

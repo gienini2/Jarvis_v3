@@ -58,6 +58,7 @@ Destino: PC local PG + re-indexar en Mem0
 - Importar ZIP ChatGPT (pendiente de OpenAI)
 - Garmin API integration (entrenamiento)
 - Limpiar prefijos "Gemini ha dicho:" / "Has dicho:" en memorias migradas
-- Renovar el certificado TLS de Fígaro (CADUCADO — tumbaba todo el Centro de
-  Mando). Parche temporal: connectors/mando_tasks.py y core/dashboard.py usan
-  verify=False. Al renovar el cert, quitar el verify=False.
+- TLS de Fígaro: cert de Tailscale en /etc/ssl/figaro-server.taild7b9e6.ts.net.crt,
+  servido por nginx (proxy a node /opt/mando :10003). Auto-renovación por cron
+  semanal en Fígaro (/etc/cron.d/tailscale-cert-renew). Si vuelve a fallar TLS,
+  revisar ese cron y `tailscale cert`.

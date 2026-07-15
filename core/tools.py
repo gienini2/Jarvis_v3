@@ -434,6 +434,26 @@ TOOLS = [
 # ---------------------------------------------------------------------------
 
 
+def _project_tasks(term: str, fuzzy: bool) -> list[dict] | None:
+    """Tareas del proyecto que denota `term`, o None si `term` no parece un
+    proyecto (para que el llamador caiga a busqueda por palabra clave).
+    'bitacola'/'acoso'/'jarvis' no son project_id (los ids reales son
+    'dragai-tech', 'acoso-laboral'...): se resuelven por alias.
+    fuzzy=True permite ademas coincidencia parcial (find_project_id); fuzzy=False
+    solo acepta id exacto o alias conocido, para no confundir una palabra clave
+    normal ('servidor') con un proyecto."""
+    from core.intent import PROJECT_ALIASES
+    tasks = find_tasks_by_project(term)          # id exacto
+    if tasks:
+        return tasks
+    pid = PROJECT_ALIASES.get(term.lower())
+    if not pid and fuzzy:
+        pid = find_project_id(term)
+    if pid:
+        return find_tasks_by_project(pid)        # [] si el proyecto existe pero no tiene pendientes
+    return None                                  # term no es un proyecto conocido
+
+
 def query_tasks(project: str = "", keyword: str = "") -> list[dict]:
     # El Centro de Mando remoto es la fuente de verdad. Sin este sync, el
     # agente podia responder con una tabla local vacia o antigua tras arrancar.
@@ -444,21 +464,17 @@ def query_tasks(project: str = "", keyword: str = "") -> list[dict]:
         # siendo mas util que fallar toda la consulta.
         pass
     if project:
-        tasks = find_tasks_by_project(project)
-        if not tasks:
-            # 'bitacola', 'acoso', 'jarvis'... no son project_id (los ids reales
-            # son 'dragai-tech', 'acoso-laboral'...). Resolver el nombre/alias
-            # antes de rendirse -- si no, la consulta devolvia [] en silencio.
-            from core.intent import PROJECT_ALIASES
-            resolved = PROJECT_ALIASES.get(project.lower()) or find_project_id(project)
-            if resolved:
-                tasks = find_tasks_by_project(resolved)
-        if not tasks:
-            # Ultimo recurso: tratar el nombre del proyecto como palabra clave.
+        tasks = _project_tasks(project, fuzzy=True)
+        if tasks is None:                        # el proyecto no existe -> keyword
             tasks = find_tasks_by_keyword(project)
         if tasks:
             return tasks
     if keyword:
+        # El modelo a veces mete el nombre del proyecto en 'keyword'. Si es un
+        # proyecto conocido, devolver sus tareas; si no, busqueda por palabra clave.
+        tasks = _project_tasks(keyword, fuzzy=False)
+        if tasks:
+            return tasks
         return find_tasks_by_keyword(keyword)
     return []
 

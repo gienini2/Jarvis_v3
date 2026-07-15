@@ -28,6 +28,10 @@ def sync_tasks_from_json() -> int:
     en el pull actual.
     """
     data = load_data()
+    # El "hecha/no hecha" real vive en el mapa `estado` (mando_key -> bool), no
+    # en el texto de la tarea. Sin cruzarlo, una tarea marcada como completada
+    # desde la web del Centro de Mando volvia a aparecer como pendiente aqui.
+    estado = get_estado()
     conn = get_connection()
     cur = conn.cursor()
     count = 0
@@ -41,7 +45,7 @@ def sync_tasks_from_json() -> int:
             seen_keys.append(mando_key)
             title = task["text"]
             priority = task["priority"]
-            status = _infer_status(title)
+            status = "done" if estado.get(mando_key) else _infer_status(title)
 
             cur.execute(
                 """

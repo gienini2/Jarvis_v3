@@ -445,6 +445,17 @@ def query_tasks(project: str = "", keyword: str = "") -> list[dict]:
         pass
     if project:
         tasks = find_tasks_by_project(project)
+        if not tasks:
+            # 'bitacola', 'acoso', 'jarvis'... no son project_id (los ids reales
+            # son 'dragai-tech', 'acoso-laboral'...). Resolver el nombre/alias
+            # antes de rendirse -- si no, la consulta devolvia [] en silencio.
+            from core.intent import PROJECT_ALIASES
+            resolved = PROJECT_ALIASES.get(project.lower()) or find_project_id(project)
+            if resolved:
+                tasks = find_tasks_by_project(resolved)
+        if not tasks:
+            # Ultimo recurso: tratar el nombre del proyecto como palabra clave.
+            tasks = find_tasks_by_keyword(project)
         if tasks:
             return tasks
     if keyword:
@@ -496,6 +507,14 @@ def _resolve_single_task(task_ref: str) -> dict:
     """Busca la tarea por keyword. Lanza ValueError con la lista de candidatos
     si hay 0 o mas de 1 -- el llamador debe convertir eso en un resultado que
     el LLM pueda leer y usar para preguntar, no para adivinar."""
+    # El indice de la tarea (mando_key = 'project_id_idx') es una posicion de
+    # array: si el remoto cambio desde el ultimo sync, update/delete tocarian
+    # OTRA tarea. Sincronizar aqui antes de resolver reduce esa ventana al
+    # minimo (la cache de 30s de load_data).
+    try:
+        sync_tasks_from_json()
+    except Exception:
+        pass
     matches = find_tasks_by_keyword(task_ref)
     if not matches:
         raise ValueError(f"No encontre ninguna tarea pendiente con '{task_ref}'.")
@@ -523,12 +542,14 @@ def complete_task(task_ref: str) -> dict:
 def add_task(project: str, text: str, priority: str = "mid") -> dict:
     if priority not in ("high", "mid", "low"):
         priority = "mid"
-    project_id = project
-    if not any(c in project_id for c in ["-", "_"]):
-        resolved = find_project_id(project_id)
-        if not resolved:
-            return {"error": f"No reconozco el proyecto '{project}'. Dime el nombre exacto del Centro de Mando."}
-        project_id = resolved
+    # find_project_id resuelve tanto nombres naturales ('bitacola') como ids
+    # reales ('dragai-tech') -- devuelve el id si el texto coincide con id o
+    # titulo. Antes solo se resolvia cuando el nombre no tenia '-'/'_', asi que
+    # 'acoso_laboral' se colaba como id literal y el POST daba 404.
+    from core.intent import PROJECT_ALIASES
+    project_id = PROJECT_ALIASES.get(project.lower()) or find_project_id(project)
+    if not project_id:
+        return {"error": f"No reconozco el proyecto '{project}'. Dime el nombre exacto del Centro de Mando."}
     result = _mando_add_task(project_id, text, priority)
     sync_tasks_from_json()
     return {"ok": True, "project_id": project_id, "text": text, "priority": priority, "mando_key": result.get("mando_key")}

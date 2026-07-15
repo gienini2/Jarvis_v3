@@ -38,14 +38,32 @@ def _clean_assistant_message(message: dict) -> dict:
     return clean
 
 
+def _recent_history() -> list[dict]:
+    """Ultimos turnos de conversacion como mensajes role/content. El agente es
+    el camino por defecto de todas las interfaces; sin esto, los follow-ups
+    ('y la segunda?', 'cambiale la prioridad a esa') perdian todo el contexto."""
+    try:
+        from core.memory import get_recent_messages
+        rows = get_recent_messages(limit=8)
+    except Exception:
+        return []
+    return [
+        {"role": role, "content": msg}
+        for role, msg, _ts in rows
+        if role in ("user", "assistant")
+    ]
+
+
 def run(user_prompt: str) -> str:
     """
     Loop de tool-calling. Devuelve la respuesta final en texto plano.
     """
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": user_prompt},
-    ]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages.extend(_recent_history())
+    # processor.py guarda el mensaje del usuario ANTES de invocar al agente, asi
+    # que puede venir ya como ultimo item del historial -- evitar duplicarlo.
+    if not (messages[-1]["role"] == "user" and messages[-1]["content"] == user_prompt):
+        messages.append({"role": "user", "content": user_prompt})
 
     for round_n in range(MAX_TOOL_ROUNDS):
         message = router.chat_tools(LLMRequest(prompt=messages, tools=TOOLS))

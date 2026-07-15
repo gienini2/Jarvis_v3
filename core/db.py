@@ -31,11 +31,25 @@ class _PooledConn:
     """Wrapper transparente: conn.close() devuelve la conexión al pool."""
 
     def __init__(self, conn):
-        self._conn = conn
+        # _returned primero: si algo falla luego, __del__/__getattr__ no revientan
         self._returned = False
+        self._conn = conn
 
     def __getattr__(self, name):
+        # Evita recursion infinita si _conn aun no existe (init a medias)
+        if name == "_conn":
+            raise AttributeError(name)
         return getattr(self._conn, name)
+
+    def __del__(self):
+        # Red de seguridad: si el llamador no llamo a close() -- p.ej. una query
+        # que lanzo excepcion antes de llegar a su close() -- devolvemos igual la
+        # conexion al pool. Sin esto, cada error de DB fugaba una conexion y a las
+        # 10 (maxconn) el chat entero se quedaba sin poder consultar nada.
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def close(self):
         if self._returned:

@@ -116,8 +116,13 @@ _UI_PATH = Path(__file__).resolve().parent.parent / "web" / "chat.html"
 @app.get("/ui", response_class=HTMLResponse)
 def ui_page():
     """Chat web local: historial + Enter/Shift+Enter + adjuntos. Accesible desde
-    el movil por la IP Tailscale del PC (http://<tailscale-ip>:3000/ui)."""
-    return HTMLResponse(_UI_PATH.read_text(encoding="utf-8"))
+    el movil por la IP Tailscale del PC (http://<tailscale-ip>:3000/ui).
+    Se inyecta la JARVIS_API_KEY en la pagina para no tener que teclearla: la UI
+    solo es alcanzable dentro de la tailnet (red privada de un unico usuario)."""
+    import json
+    html = _UI_PATH.read_text(encoding="utf-8")
+    html = html.replace('"__JARVIS_KEY__"', json.dumps(settings.JARVIS_API_KEY or ""))
+    return HTMLResponse(html)
 
 
 @app.get("/history")

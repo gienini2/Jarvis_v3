@@ -81,6 +81,7 @@
     <div class="hint">Enter envía · Shift+Enter nueva línea · 📎 adjunta archivos (se leen y se mandan como contexto)</div>
   </form>
 
+<script>window.JARVIS_KEY = "__JARVIS_KEY__";</script>
 <script>
 const $ = (s) => document.querySelector(s);
 const log = $("#log"), input = $("#input"), form = $("#form"),
@@ -92,13 +93,8 @@ const MAX_TOTAL = 200 * 1024;    // total adjunto
 let attachments = [];            // {name, text}
 let busy = false;
 
-// ---- Clave API (se guarda en el navegador; se pide una vez) ----
-function getKey() {
-  let k = localStorage.getItem("jarvisKey");
-  if (k === null) { k = prompt("Clave de Jarvis (X-Jarvis-Key). Déjalo vacío si no usas clave:") || ""; localStorage.setItem("jarvisKey", k); }
-  return k;
-}
-function resetKey() { localStorage.removeItem("jarvisKey"); }
+// ---- Clave API: la inyecta el servidor en la página (window.JARVIS_KEY) ----
+function getKey() { return (typeof window.JARVIS_KEY === "string" ? window.JARVIS_KEY : "") || ""; }
 function headers() {
   const h = { "Content-Type": "application/json" };
   const k = getKey(); if (k) h["X-Jarvis-Key"] = k;
@@ -106,7 +102,7 @@ function headers() {
 }
 async function api(path, opts = {}) {
   const res = await fetch(path, { ...opts, headers: { ...headers(), ...(opts.headers || {}) } });
-  if (res.status === 401) { resetKey(); throw new Error("Clave rechazada (401). Recarga y vuelve a introducirla."); }
+  if (res.status === 401) throw new Error("Clave rechazada (401). Revisa JARVIS_API_KEY en el .env y reinicia el servicio.");
   if (!res.ok) throw new Error("HTTP " + res.status);
   return res;
 }

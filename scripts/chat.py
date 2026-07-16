@@ -110,9 +110,36 @@ def handle_aprende(user_input):
         print(f"❌ No se pudo conectar con Jarvis: {e}\n")
 
 
+# Entrada con teclas al estilo chat: Enter envía, Ctrl+Enter/Ctrl+J añade salto
+# de línea (multilínea). input() normal no distingue Ctrl+Enter; prompt_toolkit sí.
+# Si por lo que sea no está disponible, se cae a input() sin romper el chat.
+try:
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.key_binding import KeyBindings
+
+    _kb = KeyBindings()
+
+    @_kb.add("enter")
+    def _(event):
+        event.current_buffer.validate_and_handle()   # Enter = enviar
+
+    @_kb.add("c-j")               # Ctrl+J (y Ctrl+Enter en terminales que lo distinguen)
+    @_kb.add("escape", "enter")   # Alt+Enter = respaldo universal
+    def _(event):
+        event.current_buffer.insert_text("\n")       # salto de línea
+
+    _session = PromptSession(multiline=True, key_bindings=_kb)
+
+    def read_input(prompt_text):
+        return _session.prompt(prompt_text)
+except Exception:
+    def read_input(prompt_text):
+        return input(prompt_text)
+
+
 while True:
     try:
-        user_input = input("Juanpa: ")
+        user_input = read_input("Juanpa: ")
     except (KeyboardInterrupt, EOFError):
         print("\nChat cerrado.")
         break

@@ -6,7 +6,7 @@ import httpx
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query, Request
 from pydantic import BaseModel
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.processor import process
@@ -55,8 +55,9 @@ async def lifespan(app):
 
 app = FastAPI(lifespan=lifespan)
 
-# Rutas que no requieren clave -- solo liveness check
-_PUBLIC_PATHS = {"/health"}
+# Rutas que no requieren clave -- liveness check y la pagina de la UI web (solo
+# sirve HTML/JS estatico; /history y /chat que llama la UI SI exigen la clave).
+_PUBLIC_PATHS = {"/health", "/", "/ui"}
 
 
 class ApiKeyMiddleware(BaseHTTPMiddleware):
@@ -104,6 +105,27 @@ class AprendeRequest(BaseModel):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# --- UI web (rama feature/web-chat-ui) -------------------------------------
+from pathlib import Path
+_UI_PATH = Path(__file__).resolve().parent.parent / "web" / "chat.html"
+
+
+@app.get("/", response_class=HTMLResponse)
+@app.get("/ui", response_class=HTMLResponse)
+def ui_page():
+    """Chat web local: historial + Enter/Shift+Enter + adjuntos. Accesible desde
+    el movil por la IP Tailscale del PC (http://<tailscale-ip>:3000/ui)."""
+    return HTMLResponse(_UI_PATH.read_text(encoding="utf-8"))
+
+
+@app.get("/history")
+def history(limit: int = Query(30)):
+    """Ultimos turnos de conversacion para pintar el scrollback de la UI."""
+    from core.memory import get_recent_messages
+    rows = get_recent_messages(limit=limit)
+    return [{"role": r[0], "message": r[1], "time": str(r[2])} for r in rows]
 
 
 @app.post("/audit/{job_id}/notify")

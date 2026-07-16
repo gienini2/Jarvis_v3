@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jarvis</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --border: #2a2f3a;
+    --text: #e6e9ef; --muted: #8b93a3; --accent: #4f8cff; --user: #2b4a8b;
+    --assistant: #1e222b; --danger: #ff6b6b; --ok: #3ecf8e;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f7f9; --panel: #ffffff; --panel2: #eef0f4; --border: #dfe3ea;
+      --text: #1b1f27; --muted: #666e7d; --accent: #2f6bff; --user: #dce8ff;
+      --assistant: #eef0f4;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    display: flex; flex-direction: column; height: 100dvh;
+  }
+  header {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  header .logo { font-size: 20px; }
+  header .title { font-weight: 600; }
+  header .status { margin-left: auto; font-size: 12px; color: var(--muted); }
+  header .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 5px; vertical-align: middle; }
+  header .dot.ok { background: var(--ok); } header .dot.err { background: var(--danger); }
+
+  #log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: min(760px, 92%); padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.user { align-self: flex-end; background: var(--user); border-bottom-right-radius: 4px; }
+  .msg.assistant { align-self: flex-start; background: var(--assistant); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .msg .tag { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+  .msg.pending { opacity: .6; font-style: italic; }
+  .empty { color: var(--muted); text-align: center; margin: auto; }
+
+  form { border-top: 1px solid var(--border); background: var(--panel); padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
+  #chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .chip { background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 3px 8px; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+  .chip button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
+  .row { display: flex; align-items: flex-end; gap: 8px; }
+  textarea {
+    flex: 1; resize: none; max-height: 40vh; min-height: 24px;
+    background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px 12px; font: inherit; outline: none;
+  }
+  textarea:focus { border-color: var(--accent); }
+  .btn { border: none; border-radius: 12px; padding: 0 14px; height: 44px; cursor: pointer; font-size: 18px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
+  .btn.send { background: var(--accent); color: #fff; border: none; font-weight: 600; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 6px; text-align: center; }
+</style>
+</head>
+<body>
+  <header>
+    <span class="logo">🤖</span>
+    <span class="title">Jarvis</span>
+    <span class="status"><span id="dot" class="dot"></span><span id="statusText">conectando…</span></span>
+  </header>
+
+  <div id="log"><div class="empty">Cargando historial…</div></div>
+
+  <form id="form">
+    <div id="chips"></div>
+    <div class="row">
+      <input id="files" type="file" multiple hidden>
+      <input id="folder" type="file" webkitdirectory multiple hidden>
+      <button type="button" class="btn" id="attachBtn" title="Adjuntar archivo">📎</button>
+      <button type="button" class="btn" id="folderBtn" title="Adjuntar carpeta">📁</button>
+      <textarea id="input" rows="1" placeholder="Escribe a Jarvis…  (Enter envía · Shift+Enter salto de línea)"></textarea>
+      <button type="submit" class="btn send" id="sendBtn" title="Enviar">➤</button>
+    </div>
+    <div class="hint">Enter envía · Shift+Enter nueva línea · 📎 adjunta archivos (se leen y se mandan como contexto)</div>
+  </form>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const log = $("#log"), input = $("#input"), form = $("#form"),
+      chipsBox = $("#chips"), sendBtn = $("#sendBtn"),
+      dot = $("#dot"), statusText = $("#statusText");
+
+const MAX_FILE = 80 * 1024;      // por archivo
+const MAX_TOTAL = 200 * 1024;    // total adjunto
+let attachments = [];            // {name, text}
+let busy = false;
+
+// ---- Clave API (se guarda en el navegador; se pide una vez) ----
+function getKey() {
+  let k = localStorage.getItem("jarvisKey");
+  if (k === null) { k = prompt("Clave de Jarvis (X-Jarvis-Key). Déjalo vacío si no usas clave:") || ""; localStorage.setItem("jarvisKey", k); }
+  return k;
+}
+function resetKey() { localStorage.removeItem("jarvisKey"); }
+function headers() {
+  const h = { "Content-Type": "application/json" };
+  const k = getKey(); if (k) h["X-Jarvis-Key"] = k;
+  return h;
+}
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { ...headers(), ...(opts.headers || {}) } });
+  if (res.status === 401) { resetKey(); throw new Error("Clave rechazada (401). Recarga y vuelve a introducirla."); }
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return res;
+}
+
+// ---- Render ----
+function addMsg(role, text, tag) {
+  const empty = log.querySelector(".empty"); if (empty) empty.remove();
+  const el = document.createElement("div");
+  el.className = "msg " + (role === "user" ? "user" : "assistant");
+  if (tag) { const t = document.createElement("div"); t.className = "tag"; t.textContent = tag; el.appendChild(t); }
+  const body = document.createElement("div"); body.textContent = text; el.appendChild(body);
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+  return el;
+}
+
+async function loadHistory() {
+  try {
+    const res = await api("/history?limit=40");
+    const rows = await res.json();
+    log.innerHTML = "";
+    if (!rows.length) { log.innerHTML = '<div class="empty">Sin conversaciones aún. Escribe algo 👇</div>'; }
+    for (const m of rows) addMsg(m.role, m.message);
+    setStatus(true, "conectado");
+  } catch (e) {
+    log.innerHTML = '<div class="empty">No pude cargar el historial: ' + e.message + '</div>';
+    setStatus(false, "sin conexión");
+  }
+}
+function setStatus(ok, txt) { dot.className = "dot " + (ok ? "ok" : "err"); statusText.textContent = txt; }
+
+// ---- Adjuntos ----
+function renderChips() {
+  chipsBox.innerHTML = "";
+  attachments.forEach((a, i) => {
+    const c = document.createElement("div"); c.className = "chip";
+    c.innerHTML = "📄 " + a.name + " <button title='Quitar'>✕</button>";
+    c.querySelector("button").onclick = () => { attachments.splice(i, 1); renderChips(); };
+    chipsBox.appendChild(c);
+  });
+}
+function readAsText(file) {
+  return new Promise((resolve) => {
+    if (file.size > MAX_FILE) { resolve(null); return; }        // muy grande
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result || ""));
+    r.onerror = () => resolve(null);
+    r.readAsText(file);
+  });
+}
+async function addFiles(fileList) {
+  let total = attachments.reduce((n, a) => n + a.text.length, 0);
+  for (const f of fileList) {
+    const txt = await readAsText(f);
+    if (txt === null) continue;                                  // binario/enorme: se salta
+    if (total + txt.length > MAX_TOTAL) { alert("Adjuntos demasiado grandes; se omitió " + f.name); continue; }
+    total += txt.length;
+    attachments.push({ name: f.webkitRelativePath || f.name, text: txt });
+  }
+  renderChips();
+}
+$("#attachBtn").onclick = () => $("#files").click();
+$("#folderBtn").onclick = () => $("#folder").click();
+$("#files").onchange = (e) => { addFiles(e.target.files); e.target.value = ""; };
+$("#folder").onchange = (e) => { addFiles(e.target.files); e.target.value = ""; };
+
+// ---- Enviar ----
+function buildMessage(text) {
+  let msg = text.trim();
+  for (const a of attachments) {
+    msg += "\n\n[Archivo adjunto: " + a.name + "]\n" + a.text + "\n[Fin del archivo]";
+  }
+  return msg;
+}
+async function send() {
+  if (busy) return;
+  const text = input.value;
+  if (!text.trim() && attachments.length === 0) return;
+  const shown = text.trim() + (attachments.length ? "\n📎 " + attachments.map(a => a.name).join(", ") : "");
+  addMsg("user", shown || "(archivos adjuntos)");
+  const payload = buildMessage(text);
+  input.value = ""; autoGrow();
+  const pend = addMsg("assistant", "escribiendo…"); pend.classList.add("pending");
+  busy = true; sendBtn.disabled = true;
+  try {
+    const res = await api("/chat", { method: "POST", body: JSON.stringify({ message: payload }) });
+    const data = await res.json();
+    pend.remove();
+    addMsg("assistant", data.response || "(sin respuesta)");
+    attachments = []; renderChips();
+    setStatus(true, "conectado");
+  } catch (e) {
+    pend.remove();
+    addMsg("assistant", "⚠️ " + e.message);
+    setStatus(false, "error");
+  } finally {
+    busy = false; sendBtn.disabled = false; input.focus();
+  }
+}
+
+// ---- Teclado: Enter envía, Shift+Enter salto de línea ----
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+});
+form.addEventListener("submit", (e) => { e.preventDefault(); send(); });
+
+// ---- Textarea autoexpansible ----
+function autoGrow() { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, window.innerHeight * 0.4) + "px"; }
+input.addEventListener("input", autoGrow);
+
+loadHistory();
+input.focus();
+</script>
+</body>
+</html>

@@ -71,12 +71,13 @@
   .btn:disabled { opacity: .5; cursor: default; }
   .hint { font-size: 11px; color: var(--muted); margin-top: 6px; text-align: center; }
 
-  /* --- Resultados --- */
-  .subtabs { display: flex; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  /* --- Paneles de datos (Alpha50 / Netscan / Audit) --- */
+  .subtabs { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--panel); }
   .sub-btn { border: 1px solid var(--border); background: var(--panel2); color: var(--muted); border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
   .sub-btn.active { background: var(--accent); color: #fff; border-color: transparent; }
   .sub-btn.reload { margin-left: auto; }
-  #res { flex: 1; overflow-y: auto; padding: 14px; }
+  .sub-title { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .pane { flex: 1; overflow-y: auto; padding: 14px; }
   .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
   .card h3 { margin: 0 0 6px; font-size: 15px; }
   .meta { font-size: 12px; color: var(--muted); }
@@ -100,7 +101,8 @@
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="chat">💬 Chat</button>
-    <button class="tab-btn" data-tab="res">📊 Resultados</button>
+    <button class="tab-btn" data-tab="alpha50">💪 Alpha50</button>
+    <button class="tab-btn" data-tab="scan">🛰️ Netscan / Audit</button>
   </div>
 
   <!-- ---------------- CHAT ---------------- -->
@@ -120,15 +122,23 @@
     </form>
   </div>
 
-  <!-- ---------------- RESULTADOS ---------------- -->
-  <div class="tab-panel" id="panel-res">
+  <!-- ---------------- ALPHA50 ---------------- -->
+  <div class="tab-panel" id="panel-alpha50">
+    <div class="subtabs">
+      <span class="sub-title">💪 Entrenamiento · método Fitness 12 semanas</span>
+      <button class="sub-btn reload" id="reloadAlpha" title="Recargar">🔄</button>
+    </div>
+    <div class="pane" id="resAlpha"><div class="empty">Cargando…</div></div>
+  </div>
+
+  <!-- ---------------- NETSCAN / AUDIT ---------------- -->
+  <div class="tab-panel" id="panel-scan">
     <div class="subtabs">
       <button class="sub-btn active" data-sub="netscan">🛰️ Netscan</button>
       <button class="sub-btn" data-sub="audit">🔍 Auditoría</button>
-      <button class="sub-btn" data-sub="alpha50">💪 Alpha50</button>
-      <button class="sub-btn reload" id="reloadBtn" title="Recargar">🔄</button>
+      <button class="sub-btn reload" id="reloadScan" title="Recargar">🔄</button>
     </div>
-    <div id="res"><div class="empty">Elige una sección…</div></div>
+    <div class="pane" id="resScan"><div class="empty">Cargando…</div></div>
   </div>
 
 <script>window.JARVIS_KEY = "__JARVIS_KEY__";</script>
@@ -136,10 +146,11 @@
 const $ = (s) => document.querySelector(s);
 const log = $("#log"), input = $("#input"), form = $("#form"),
       chipsBox = $("#chips"), sendBtn = $("#sendBtn"),
-      dot = $("#dot"), statusText = $("#statusText"), res = $("#res");
+      dot = $("#dot"), statusText = $("#statusText"),
+      resAlpha = $("#resAlpha"), resScan = $("#resScan");
 
 const MAX_FILE = 80 * 1024, MAX_TOTAL = 200 * 1024;
-let attachments = [], busy = false, currentSub = "netscan";
+let attachments = [], busy = false, currentScanSub = "netscan";
 
 // ---- Clave API: la inyecta el servidor en la página (window.JARVIS_KEY) ----
 function getKey() { return (typeof window.JARVIS_KEY === "string" ? window.JARVIS_KEY : "") || ""; }
@@ -161,16 +172,18 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<":
 function switchTab(name) {
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
   document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + name));
-  if (name === "res") loadSub(currentSub);
   if (name === "chat") input.focus();
+  if (name === "alpha50") loadAlpha50();
+  if (name === "scan") loadScan(currentScanSub);
 }
 document.querySelectorAll(".tab-btn").forEach(b => b.onclick = () => switchTab(b.dataset.tab));
 document.querySelectorAll(".sub-btn[data-sub]").forEach(b => b.onclick = () => {
-  currentSub = b.dataset.sub;
+  currentScanSub = b.dataset.sub;
   document.querySelectorAll(".sub-btn[data-sub]").forEach(x => x.classList.toggle("active", x === b));
-  loadSub(currentSub);
+  loadScan(currentScanSub);
 });
-$("#reloadBtn").onclick = () => loadSub(currentSub);
+$("#reloadAlpha").onclick = () => loadAlpha50();
+$("#reloadScan").onclick = () => loadScan(currentScanSub);
 
 // ---- Chat ----
 function addMsg(role, text, tag) {
@@ -254,20 +267,41 @@ form.addEventListener("submit", (e) => { e.preventDefault(); send(); });
 function autoGrow() { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, window.innerHeight * 0.4) + "px"; }
 input.addEventListener("input", autoGrow);
 
-// ---- Resultados ----
-async function loadSub(which) {
-  res.innerHTML = '<div class="empty">Cargando…</div>';
-  try {
-    if (which === "netscan") renderNetscan(await (await api("/netscan/last")).json());
-    else if (which === "audit") renderAudit(await (await api("/results/audit?limit=10")).json());
-    else renderAlpha50(await (await api("/results/alpha50?dias=14")).json());
-  } catch (e) {
-    res.innerHTML = '<div class="empty">⚠️ ' + esc(e.message) + '</div>';
+// ---- Alpha50 ----
+async function loadAlpha50() {
+  resAlpha.innerHTML = '<div class="empty">Cargando…</div>';
+  try { renderAlpha50(await (await api("/results/alpha50?dias=14")).json()); }
+  catch (e) { resAlpha.innerHTML = '<div class="empty">⚠️ ' + esc(e.message) + '</div>'; }
+}
+function renderAlpha50(d) {
+  if (!d || d.error) { resAlpha.innerHTML = '<div class="empty">' + esc((d && d.error) || "Sin datos de Alpha50.") + '</div>'; return; }
+  let h = "";
+  if (d.programa) {
+    h += '<div class="card"><h3>💪 Estado del programa</h3><div class="kpis">' +
+      Object.entries(d.programa).map(([k, v]) => '<span class="kpi">' + esc(k) + ': <b>' + esc(v) + '</b></span>').join("") +
+      '</div></div>';
   }
+  const hist = d.historial || [];
+  if (hist.length) {
+    const cols = Object.keys(hist[0]);
+    h += '<div class="card"><h3>📅 Historial (' + hist.length + ' días)</h3><div class="tblwrap"><table><tr>' +
+      cols.map(c => '<th>' + esc(c) + '</th>').join("") + '</tr>' +
+      hist.map(r => '<tr>' + cols.map(c => '<td>' + esc(r[c]) + '</td>').join("") + '</tr>').join("") +
+      '</table></div></div>';
+  } else h += '<div class="empty">Sin días registrados.</div>';
+  resAlpha.innerHTML = h;
 }
 
+// ---- Netscan / Audit ----
+async function loadScan(which) {
+  resScan.innerHTML = '<div class="empty">Cargando…</div>';
+  try {
+    if (which === "netscan") renderNetscan(await (await api("/netscan/last")).json());
+    else renderAudit(await (await api("/results/audit?limit=10")).json());
+  } catch (e) { resScan.innerHTML = '<div class="empty">⚠️ ' + esc(e.message) + '</div>'; }
+}
 function renderNetscan(r) {
-  if (!r || !r.timestamp) { res.innerHTML = '<div class="empty">Sin escaneos todavía. Pídele a Jarvis "escanea mi red".</div>'; return; }
+  if (!r || !r.timestamp) { resScan.innerHTML = '<div class="empty">Sin escaneos todavía. Pídele a Jarvis "escanea mi red".</div>'; return; }
   const sev = (r.summary && r.summary.cve_by_severity) || {};
   let h = '<div class="card"><h3>🛰️ Último escaneo</h3>' +
     '<div class="meta">🕒 ' + esc(r.timestamp) + ' · 🌐 ' + esc(r.subnet) + ' · 📶 ' + esc(r.host_count) + ' dispositivos · ⚙️ ' + esc(r.backend) + '</div>' +
@@ -289,37 +323,17 @@ function renderNetscan(r) {
       h += '<div class="meta">🔎 ' + esc(c.id) + ' (' + esc(c.severity) + ', CVSS ' + esc(c.cvss ?? "?") + ') · ' + esc(fi.product) + '</div>';
     h += '</div>';
   }
-  res.innerHTML = h;
+  resScan.innerHTML = h;
 }
-
 function renderAudit(jobs) {
-  if (!jobs || !jobs.length) { res.innerHTML = '<div class="empty">Sin auditorías todavía.</div>'; return; }
-  res.innerHTML = jobs.map(j =>
+  if (!jobs || !jobs.length) { resScan.innerHTML = '<div class="empty">Sin auditorías todavía.</div>'; return; }
+  resScan.innerHTML = jobs.map(j =>
     '<div class="card"><h3>🔍 #' + esc(j.id) + ' · <span class="pill ' + esc(j.status) + '">' + esc(j.status) + '</span></h3>' +
     '<div class="meta">' + esc(j.repo_path) + '</div>' +
     '<div class="meta">🕒 ' + esc(j.started || "?") + (j.finished ? " → " + esc(j.finished) : "") + '</div>' +
     (j.error ? '<div class="meta">⚠️ ' + esc(j.error) + '</div>' : "") +
     (j.summary ? '<pre class="txt">' + esc(j.summary) + '</pre>' : '<div class="meta">(sin resumen ejecutivo)</div>') +
     '</div>').join("");
-}
-
-function renderAlpha50(d) {
-  if (!d || d.error) { res.innerHTML = '<div class="empty">' + esc((d && d.error) || "Sin datos de Alpha50.") + '</div>'; return; }
-  let h = "";
-  if (d.programa) {
-    h += '<div class="card"><h3>💪 Estado del programa</h3><div class="kpis">' +
-      Object.entries(d.programa).map(([k, v]) => '<span class="kpi">' + esc(k) + ': <b>' + esc(v) + '</b></span>').join("") +
-      '</div></div>';
-  }
-  const hist = d.historial || [];
-  if (hist.length) {
-    const cols = Object.keys(hist[0]);
-    h += '<div class="card"><h3>📅 Historial (' + hist.length + ' días)</h3><div class="tblwrap"><table><tr>' +
-      cols.map(c => '<th>' + esc(c) + '</th>').join("") + '</tr>' +
-      hist.map(r => '<tr>' + cols.map(c => '<td>' + esc(r[c]) + '</td>').join("") + '</tr>').join("") +
-      '</table></div></div>';
-  } else h += '<div class="empty">Sin días registrados.</div>';
-  res.innerHTML = h;
 }
 
 loadHistory();

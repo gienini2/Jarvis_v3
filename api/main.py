@@ -133,6 +133,36 @@ def history(limit: int = Query(30)):
     return [{"role": r[0], "message": r[1], "time": str(r[2])} for r in rows]
 
 
+# --- Visor de resultados de la UI (pestana "Resultados") --------------------
+# netscan ya expone GET /netscan/last, asi que la UI lo consume directamente.
+
+
+@app.get("/results/audit")
+def results_audit(limit: int = Query(10)):
+    """Ultimas auditorias con su resumen ejecutivo."""
+    from auditor.db import list_jobs, get_summaries
+    out = []
+    for job in list_jobs(limit):
+        summaries = get_summaries(job["id"], level="executive")
+        out.append({
+            "id": job["id"],
+            "repo_path": job["repo_path"],
+            "status": job["status"],
+            "started": job["started"],
+            "finished": job["finished"],
+            "error": job["error"],
+            "summary": summaries[0]["summary"] if summaries else "",
+        })
+    return out
+
+
+@app.get("/results/alpha50")
+def results_alpha50(dias: int = Query(14)):
+    """Estado del programa Alpha50 + historial de dias (solo lectura)."""
+    from alpha50.history_reader import get_historial
+    return get_historial(dias=dias)
+
+
 @app.post("/audit/{job_id}/notify")
 async def audit_notify(job_id: int):
     job = get_job(job_id)

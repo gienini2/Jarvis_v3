@@ -94,6 +94,16 @@ def add_summary(job_id: int, level: str, path: str, summary: str):
         )
 
 
+def list_jobs(limit: int = 10) -> list:
+    """Ultimos trabajos de auditoria (para el visor de resultados de la UI web)."""
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT id, repo_path, status, started, finished, error "
+            "FROM audit_jobs ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+
+
 def get_job(job_id: int) -> sqlite3.Row:
     with get_conn() as conn:
         return conn.execute("SELECT * FROM audit_jobs WHERE id=?", (job_id,)).fetchone()

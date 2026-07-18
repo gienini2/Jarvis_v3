@@ -727,8 +727,8 @@ def edit_code(path: str, instruction: str) -> dict:
         result = subprocess.run(
             [
                 sys.executable, "-m", "aider",
-                "--model", "groq/llama-3.3-70b-versatile",
-                "--editor-model", "groq/qwen-qwq-32b",
+                "--model", "groq/openai/gpt-oss-120b",
+                "--editor-model", "groq/qwen/qwen3.6-27b",
                 "--yes",
                 "--auto-commits",
                 "--message", instruction,

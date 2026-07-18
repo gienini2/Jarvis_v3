@@ -14,8 +14,8 @@ class Settings(BaseSettings):
     FIGARO_HOST: str = "100.78.43.76"
 
     GROQ_API_KEY: str = ""
-    GROQ_MODEL_GENERAL: str = "llama-3.3-70b-versatile"
-    GROQ_MODEL_CODE: str = "qwen-qwq-32b"
+    GROQ_MODEL_GENERAL: str = "openai/gpt-oss-120b"
+    GROQ_MODEL_CODE: str = "qwen/qwen3.6-27b"
 
     LLM_TEMPERATURE: float = 0.2
     LLM_MAX_TOKENS: int = 2048

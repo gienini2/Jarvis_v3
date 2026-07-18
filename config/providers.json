@@ -53,8 +53,8 @@
           "embeddings": false
         },
         {
-          "name": "llama-3.3-70b-versatile",
-          "display_name": "Llama-3.3-70B",
+          "name": "openai/gpt-oss-20b",
+          "display_name": "GPT-OSS-20B",
           "roles": ["general", "tools"],
           "priority": 90,
           "context": 131072,
@@ -67,8 +67,8 @@
           "embeddings": false
         },
         {
-          "name": "qwen/qwen3-32b",
-          "display_name": "Qwen3-32B",
+          "name": "qwen/qwen3.6-27b",
+          "display_name": "Qwen3.6-27B",
           "roles": ["code", "reasoning", "tools"],
           "priority": 85,
           "context": 131072,

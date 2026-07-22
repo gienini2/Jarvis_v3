@@ -5,7 +5,6 @@ Tool-calling agent. Provider selection lives in core/llm_router.py.
 import json
 import logging
 
-from core.llm import SYSTEM_PROMPT
 from core.llm_types import LLMRequest
 from core import llm_router as router
 from core.tools import TOOLS, call_tool
@@ -13,6 +12,23 @@ from core.tools import TOOLS, call_tool
 log = logging.getLogger("jarvis.agent")
 
 MAX_TOOL_ROUNDS = 4
+MAX_TOOL_RESULT_CHARS = 3500   # red de seguridad; las tools ya devuelven resultados compactos
+
+# Prompt COMPACTO para el tool-calling. El SYSTEM_PROMPT largo de core/llm.py
+# (~1000 tokens) + las 17 tools (~2700) hacian que cada peticion superara los
+# 8000 tokens/min del tier gratis de Groq -> 413/429, caida al modelo local y
+# tareas inventadas. Aqui va lo minimo: quien es, que use las tools y no invente,
+# y cuidado con las acciones reales.
+AGENT_SYSTEM_PROMPT = (
+    "Eres Jarvis, asistente personal de Juan Pablo (Juanpa), local-first en su PC. "
+    "Usa SIEMPRE las herramientas para datos reales -- tareas del Centro de Mando, "
+    "correos, calendario, Drive, memoria de conversaciones, entrenos de Alpha50, "
+    "escaneo de red, auditorias. NUNCA inventes tareas, correos ni datos: si una "
+    "herramienta no devuelve nada, dilo claramente. Enviar un correo o un Telegram y "
+    "editar codigo tienen efecto inmediato -- asegurate de tener todo (destinatario, "
+    "asunto, cuerpo; ruta e instruccion) antes de llamar a esas tools; si falta un dato, "
+    "preguntalo. Responde en castellano, directo y sin relleno; algun emoji esta bien."
+)
 
 
 def _clean_assistant_message(message: dict) -> dict:
@@ -44,11 +60,11 @@ def _recent_history() -> list[dict]:
     ('y la segunda?', 'cambiale la prioridad a esa') perdian todo el contexto."""
     try:
         from core.memory import get_recent_messages
-        rows = get_recent_messages(limit=8)
+        rows = get_recent_messages(limit=6)
     except Exception:
         return []
     return [
-        {"role": role, "content": msg}
+        {"role": role, "content": msg[:600]}   # recortado: solo para dar contexto, no reventar tokens
         for role, msg, _ts in rows
         if role in ("user", "assistant")
     ]
@@ -58,7 +74,7 @@ def run(user_prompt: str) -> str:
     """
     Loop de tool-calling. Devuelve la respuesta final en texto plano.
     """
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages = [{"role": "system", "content": AGENT_SYSTEM_PROMPT}]
     messages.extend(_recent_history())
     # processor.py guarda el mensaje del usuario ANTES de invocar al agente, asi
     # que puede venir ya como ultimo item del historial -- evitar duplicarlo.
@@ -92,10 +108,13 @@ def run(user_prompt: str) -> str:
                 args = {}
             log.info(f"[agent] ronda={round_n} tool={fn_name} args={args}")
             result = call_tool(fn_name, args)
+            content = json.dumps(result, ensure_ascii=False, default=str)
+            if len(content) > MAX_TOOL_RESULT_CHARS:
+                content = content[:MAX_TOOL_RESULT_CHARS] + " …(resultado truncado)"
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc["id"],
-                "content": json.dumps(result, ensure_ascii=False, default=str),
+                "content": content,
             })
 
     # Se agotaron las rondas con la ultima aun pidiendo tools: en vez de tirar

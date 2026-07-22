@@ -14,7 +14,7 @@ error para que el LLM se lo pregunte a Juan Pablo en vez de adivinar.
 
 Fase 3 (autonomia sobre el propio codigo de Jarvis) todavia no esta aqui.
 """
-from core.tasks import find_tasks_by_project, find_tasks_by_keyword, sync_tasks_from_json
+from core.tasks import find_tasks_by_project, find_tasks_by_keyword, find_all_pending, sync_tasks_from_json
 from core.rag import search_memories
 from connectors.google_tools import (
     get_recent_emails,
@@ -47,9 +47,9 @@ TOOLS = [
         "function": {
             "name": "query_tasks",
             "description": (
-                "Consulta tareas pendientes del Centro de Mando por proyecto y/o palabra "
-                "clave. Solo lectura, no modifica nada. Usar cuando el usuario pregunte "
-                "que tiene pendiente, en que proyecto, o busque una tarea concreta."
+                "Consulta tareas pendientes del Centro de Mando. Sin argumentos devuelve "
+                "TODAS las pendientes (para 'que tengo pendiente / esta semana'); con "
+                "'project' filtra por proyecto y con 'keyword' por texto. Solo lectura."
             ),
             "parameters": {
                 "type": "object",
@@ -365,21 +365,13 @@ TOOLS = [
         "function": {
             "name": "start_netscan",
             "description": (
-                "Lanza una auditoria DEFENSIVA de la red local: descubre que dispositivos "
-                "hay conectados, los identifica (camara, router, PC, impresora, IoT) y cruza "
-                "sus servicios con CVEs conocidos (NVD). NO explota nada, solo diagnostica. "
-                "Es asincrono: devuelve enseguida y el informe llega despues por Telegram "
-                "(1-3 min). Usar cuando Juan Pablo pida escanear/auditar su red, ver que hay "
-                "conectado a su wifi, o buscar vulnerabilidades en su red. "
-                "IMPORTANTE: si el usuario NO da una subred concreta, NO le preguntes cual es "
-                "-- llama a esta herramienta directamente con subnet='' (cadena vacia) para que "
-                "autodetecte la red local. Solo pasa un valor en subnet si el usuario lo dice "
-                "explicitamente. SOLO para su propia red o redes con autorizacion explicita. "
-                "Traduce lo que pida en lenguaje natural a los parametros: 'busca vulnerabilidades' "
-                "-> nse_scripts='vuln,safe'; 'mira UDP / DNS / SNMP' -> with_udp=true; 'que sistema "
-                "operativo tienen' -> with_os=true; 'traza la ruta / saltos' -> with_traceroute=true; "
-                "'rapido' -> fast=true; 'a fondo / agresivo' -> host_discovery='aggressive'. "
-                "Deja los que no mencione en su valor por defecto."
+                "Auditoria DEFENSIVA de la red local: descubre e identifica dispositivos y "
+                "cruza sus servicios con CVEs (no explota nada). Asincrona: el informe llega "
+                "por Telegram. Usar para escanear/auditar la red o buscar vulnerabilidades. "
+                "Si el usuario no da subred, llamar con subnet='' para autodetectar. Mapear "
+                "lenguaje natural: vulnerabilidades->nse_scripts='vuln,safe', UDP->with_udp, "
+                "SO->with_os, ruta/saltos->with_traceroute, rapido->fast, a fondo->"
+                "host_discovery='aggressive'. Solo para su red o redes autorizadas."
             ),
             "parameters": {
                 "type": "object",
@@ -463,24 +455,35 @@ def query_tasks(project: str = "", keyword: str = "") -> list[dict]:
         # Si Figaro no esta disponible, conservar la ultima copia local sigue
         # siendo mas util que fallar toda la consulta.
         pass
+    if not project and not keyword:
+        # "que tengo pendiente / que tengo esta semana" sin proyecto concreto.
+        return _compact_tasks(find_all_pending())
+    tasks = None
     if project:
         tasks = _project_tasks(project, fuzzy=True)
         if tasks is None:                        # el proyecto no existe -> keyword
             tasks = find_tasks_by_keyword(project)
-        if tasks:
-            return tasks
-    if keyword:
+    if not tasks and keyword:
         # El modelo a veces mete el nombre del proyecto en 'keyword'. Si es un
         # proyecto conocido, devolver sus tareas; si no, busqueda por palabra clave.
         tasks = _project_tasks(keyword, fuzzy=False)
-        if tasks:
-            return tasks
-        return find_tasks_by_keyword(keyword)
-    return []
+        if not tasks:
+            tasks = find_tasks_by_keyword(keyword)
+    return _compact_tasks(tasks or [])
 
 
-def search_memory(query: str, limit: int = 10) -> list[dict]:
-    return search_memories(query, limit=limit)
+def _compact_tasks(tasks: list[dict]) -> list[dict]:
+    """Solo lo que el agente necesita para responder. Los 7 campos completos
+    (id, mando_key, project_id, status...) hacian que 12 tareas pasaran de 2500
+    chars y el resultado se truncara -> el modelo creia que no habia tareas."""
+    return [{"prioridad": t["priority"], "proyecto": t["project"], "tarea": t["title"]} for t in tasks]
+
+
+def search_memory(query: str, limit: int = 6) -> list[dict]:
+    # Cap de resultados y de longitud: 10 memorias enteras podian ocupar miles de
+    # tokens y reventar el limite del modelo. 6 fragmentos recortados bastan.
+    mems = search_memories(query, limit=min(limit, 6))
+    return [{"recuerdo": m["content"][:400], "similitud": round(m.get("similarity", 0), 2)} for m in mems]
 
 
 def list_recent_emails(max_results: int = 5) -> list[dict]:

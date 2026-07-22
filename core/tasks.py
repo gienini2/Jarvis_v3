@@ -108,6 +108,27 @@ def find_tasks_by_project(project_id: str, exclude_done: bool = True) -> list:
     return [_row_to_dict(r) for r in rows]
 
 
+def find_all_pending(limit: int = 20) -> list:
+    """Todas las tareas pendientes (sin filtrar por proyecto), ordenadas por
+    prioridad. Para "que tengo pendiente / que tengo esta semana" sin proyecto."""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT id, mando_key, title, status, priority, project, project_id
+        FROM tasks
+        WHERE status != 'done'
+        ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'mid' THEN 1 ELSE 2 END, project
+        LIMIT %s
+        """,
+        (limit,),
+    )
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [_row_to_dict(r) for r in rows]
+
+
 def resolve_task_ref(task_ref: str) -> list:
     """Find pending tasks matching a reference (code, keyword, or project)."""
     return find_tasks_by_keyword(task_ref, exclude_done=True)

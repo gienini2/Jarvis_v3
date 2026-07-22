@@ -53,6 +53,11 @@
   .msg.assistant { align-self: flex-start; background: var(--assistant); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
   .msg .tag { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
   .msg.pending { opacity: .6; font-style: italic; }
+  .msg strong { font-weight: 700; }
+  .msg em { font-style: italic; }
+  .msg code { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 90%; }
+  .msg ul, .msg ol { margin: 6px 0; padding-left: 22px; }
+  .msg li { margin: 3px 0; }
   .empty { color: var(--muted); text-align: center; margin: auto; padding: 20px; }
 
   form { border-top: 1px solid var(--border); background: var(--panel); padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
@@ -168,6 +173,28 @@ async function api(path, opts = {}) {
 function setStatus(ok, txt) { dot.className = "dot " + (ok ? "ok" : "err"); statusText.textContent = txt; }
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+// Markdown ligero: negrita, código, listas y saltos. Escapa HTML primero (seguro).
+function mdToHtml(src) {
+  let s = esc(src);
+  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  const lines = s.split("\n");
+  let out = "", ul = false, ol = false;
+  const close = () => { if (ul) { out += "</ul>"; ul = false; } if (ol) { out += "</ol>"; ol = false; } };
+  for (const line of lines) {
+    const mUl = line.match(/^\s*[-*]\s+(.*)$/);
+    const mOl = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    const mH = line.match(/^\s*#{1,4}\s+(.*)$/);
+    if (mUl) { if (ol) { out += "</ol>"; ol = false; } if (!ul) { out += "<ul>"; ul = true; } out += "<li>" + mUl[1] + "</li>"; }
+    else if (mOl) { if (ul) { out += "</ul>"; ul = false; } if (!ol) { out += "<ol>"; ol = true; } out += "<li>" + mOl[1] + "</li>"; }
+    else if (mH) { close(); out += "<strong>" + mH[1] + "</strong><br>"; }
+    else if (line.trim() === "") { close(); out += "<br>"; }
+    else { close(); out += line + "<br>"; }
+  }
+  close();
+  return out;
+}
+
 // ---- Pestañas (patrón Bitácola) ----
 function switchTab(name) {
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
@@ -191,7 +218,10 @@ function addMsg(role, text, tag) {
   const el = document.createElement("div");
   el.className = "msg " + (role === "user" ? "user" : "assistant");
   if (tag) { const t = document.createElement("div"); t.className = "tag"; t.textContent = tag; el.appendChild(t); }
-  const body = document.createElement("div"); body.textContent = text; el.appendChild(body);
+  const body = document.createElement("div");
+  if (role === "user") body.textContent = text;      // input propio: texto plano
+  else body.innerHTML = mdToHtml(text);              // respuesta: markdown formateado
+  el.appendChild(body);
   log.appendChild(el); log.scrollTop = log.scrollHeight;
   return el;
 }

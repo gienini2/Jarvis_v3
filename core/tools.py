@@ -536,6 +536,16 @@ def _resolve_single_task(task_ref: str) -> dict:
         pass
     matches = find_tasks_by_keyword(task_ref)
     if not matches:
+        # El modelo suele pasar el NOMBRE DEL PROYECTO ('Bitacola') como si fuera
+        # la tarea. No casa con ningun titulo -> antes daba "no encontre" y ahi se
+        # atascaba. Si es un proyecto, devolver sus tareas para que elija cual.
+        proj = _project_tasks(task_ref, fuzzy=True)   # None si no es un proyecto
+        if proj:
+            titulos = " | ".join(f"'{t['title']}'" for t in proj[:8])
+            raise ValueError(
+                f"'{task_ref}' es un proyecto con {len(proj)} tarea(s) pendiente(s): {titulos}. "
+                f"Para completar/modificar una, usa una palabra de SU texto, no el nombre del proyecto."
+            )
         raise ValueError(f"No encontre ninguna tarea pendiente con '{task_ref}'.")
     if len(matches) > 1:
         opciones = [f"[{m['priority']}] {m['project']} -- {m['title']}" for m in matches[:5]]

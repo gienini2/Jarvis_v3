@@ -41,7 +41,11 @@
         {
           "name": "openai/gpt-oss-120b",
           "display_name": "GPT-OSS-120B",
-          "roles": ["general", "tools", "reasoning"],
+          "roles": [
+            "general",
+            "tools",
+            "reasoning"
+          ],
           "priority": 100,
           "context": 131072,
           "reasoning": 9,
@@ -55,7 +59,10 @@
         {
           "name": "openai/gpt-oss-20b",
           "display_name": "GPT-OSS-20B",
-          "roles": ["general", "tools"],
+          "roles": [
+            "general",
+            "tools"
+          ],
           "priority": 90,
           "context": 131072,
           "reasoning": 8,
@@ -69,7 +76,11 @@
         {
           "name": "qwen/qwen3.6-27b",
           "display_name": "Qwen3.6-27B",
-          "roles": ["code", "reasoning", "tools"],
+          "roles": [
+            "code",
+            "reasoning",
+            "tools"
+          ],
           "priority": 85,
           "context": 131072,
           "reasoning": 8,
@@ -89,7 +100,10 @@
         {
           "name": "meta/llama-3.3-70b-instruct",
           "display_name": "Llama-3.3-70B",
-          "roles": ["general", "tools"],
+          "roles": [
+            "general",
+            "tools"
+          ],
           "priority": 90,
           "context": 131072,
           "reasoning": 8,
@@ -103,7 +117,12 @@
         {
           "name": "deepseek-ai/deepseek-v4-pro",
           "display_name": "DeepSeek V4 Pro",
-          "roles": ["code", "reasoning", "long_context", "tools"],
+          "roles": [
+            "code",
+            "reasoning",
+            "long_context",
+            "tools"
+          ],
           "priority": 95,
           "context": 1000000,
           "reasoning": 9,
@@ -117,7 +136,11 @@
         {
           "name": "qwen/qwen3-235b-a22b",
           "display_name": "Qwen3-235B-A22B",
-          "roles": ["general", "code", "reasoning"],
+          "roles": [
+            "general",
+            "code",
+            "reasoning"
+          ],
           "priority": 88,
           "context": 131072,
           "reasoning": 9,
@@ -131,7 +154,11 @@
         {
           "name": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
           "display_name": "Nemotron Ultra",
-          "roles": ["reasoning", "long_context", "tools"],
+          "roles": [
+            "reasoning",
+            "long_context",
+            "tools"
+          ],
           "priority": 86,
           "context": 131072,
           "reasoning": 10,
@@ -151,7 +178,11 @@
         {
           "name": "qwen2.5:7b",
           "display_name": "qwen2.5",
-          "roles": ["general", "code", "tools"],
+          "roles": [
+            "general",
+            "code",
+            "tools"
+          ],
           "priority": 80,
           "context": 32768,
           "reasoning": 6,
@@ -165,7 +196,11 @@
         {
           "name": "deepseek-r1:8b",
           "display_name": "DeepSeek-R1",
-          "roles": ["reasoning", "code", "tools"],
+          "roles": [
+            "reasoning",
+            "code",
+            "tools"
+          ],
           "priority": 75,
           "context": 128000,
           "reasoning": 8,
@@ -179,7 +214,10 @@
         {
           "name": "phi4",
           "display_name": "Phi-4",
-          "roles": ["general", "reasoning"],
+          "roles": [
+            "general",
+            "reasoning"
+          ],
           "priority": 60,
           "context": 16000,
           "reasoning": 7,
@@ -193,7 +231,10 @@
         {
           "name": "gemma3",
           "display_name": "Gemma 3",
-          "roles": ["general", "vision"],
+          "roles": [
+            "general",
+            "vision"
+          ],
           "priority": 55,
           "context": 128000,
           "reasoning": 7,
@@ -207,35 +248,45 @@
       ]
     },
     "kimi": {
-      "priority": 80,
+      "priority": 92,
       "enabled": false,
       "models": [
         {
-          "name": "kimi-k2.7-code-highspeed",
-          "display_name": "Kimi K2.7 Code Highspeed",
-          "roles": ["code", "reasoning", "long_context", "tools", "vision"],
+          "name": "kimi-k3",
+          "display_name": "Kimi K3",
+          "roles": [
+            "general",
+            "tools",
+            "reasoning",
+            "long_context",
+            "code"
+          ],
           "priority": 95,
-          "context": 256000,
-          "reasoning": 10,
-          "coding": 10,
-          "speed": 8,
-          "tools": true,
-          "stream": true,
-          "vision": true,
-          "embeddings": false
-        },
-        {
-          "name": "kimi-k2.6",
-          "display_name": "Kimi K2.6",
-          "roles": ["general", "reasoning", "long_context", "tools", "vision"],
-          "priority": 90,
           "context": 256000,
           "reasoning": 10,
           "coding": 9,
           "speed": 7,
           "tools": true,
-          "stream": true,
-          "vision": true,
+          "stream": false,
+          "vision": false,
+          "embeddings": false
+        },
+        {
+          "name": "kimi-k2.7-code",
+          "display_name": "Kimi K2.7 Code",
+          "roles": [
+            "code",
+            "reasoning",
+            "tools"
+          ],
+          "priority": 90,
+          "context": 256000,
+          "reasoning": 9,
+          "coding": 10,
+          "speed": 8,
+          "tools": true,
+          "stream": false,
+          "vision": false,
           "embeddings": false
         }
       ]

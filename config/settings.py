@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     GROQ_MODEL_GENERAL: str = "openai/gpt-oss-120b"
     GROQ_MODEL_CODE: str = "qwen/qwen3.6-27b"
 
+    # Kimi / Moonshot (API compatible con OpenAI). Fallback de contexto grande.
+    KIMI_API_KEY: str = ""
+    KIMI_API_URL: str = "https://api.moonshot.ai/v1/chat/completions"
+
     LLM_TEMPERATURE: float = 0.2
     LLM_MAX_TOKENS: int = 2048
     OLLAMA_NUM_CTX: int = 4096   # 8192 dispara la latencia de Ollama en la RTX 5050 (~46s)

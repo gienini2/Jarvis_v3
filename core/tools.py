@@ -702,9 +702,11 @@ def edit_code(path: str, instruction: str) -> dict:
     conocida. Cada llamada = un commit de git independiente, reversible con
     'git revert <hash>'. Reutiliza el mismo whitelist que start_audit (Fase 1)
     para no permitir que el LLM edite una ruta arbitraria del disco."""
+    import os
     import subprocess
     import sys
     from pathlib import Path
+    from config.settings import settings
     from auditor.allowed_paths import is_path_allowed, allowed_roots_str
 
     if not is_path_allowed(path):
@@ -742,6 +744,11 @@ def edit_code(path: str, instruction: str) -> dict:
                 sys.executable, "-m", "aider",
                 "--model", "groq/openai/gpt-oss-120b",
                 "--editor-model", "groq/qwen/qwen3.6-27b",
+                # Sin interfaz interactiva: Jarvis corre aider como servicio (sin
+                # consola) y prompt_toolkit reventaba ("expecting a Windows console").
+                "--no-pretty",
+                "--no-fancy-input",
+                "--no-stream",
                 "--yes",
                 "--auto-commits",
                 "--message", instruction,
@@ -749,6 +756,16 @@ def edit_code(path: str, instruction: str) -> dict:
             ],
             cwd=str(repo_root),
             capture_output=True, text=True, timeout=300,
+            # aider (litellm) lee GROQ_API_KEY del ENTORNO; Jarvis la tiene en
+            # settings (.env via Pydantic), no en os.environ -> hay que inyectarla.
+            # PYTHONUTF8/IOENCODING: aider imprime Unicode (▶, emojis) y el cp1252
+            # de Windows lo reventaba con UnicodeEncodeError.
+            env={
+                **os.environ,
+                "GROQ_API_KEY": settings.GROQ_API_KEY,
+                "PYTHONUTF8": "1",
+                "PYTHONIOENCODING": "utf-8",
+            },
         )
     except subprocess.TimeoutExpired:
         return {"error": "aider tardo mas de 300s -- probablemente colgado, revisar a mano."}

@@ -15,6 +15,7 @@ from auditor.scanner import scan, SKIP_DIRS
 from auditor.batcher import make_batches, batch_prompt
 from auditor.synthesizer import run_synthesis
 from core.llm import generate
+from connectors.relay_client import send_telegram_message
 
 # Carpetas worktree / Claude Code — excluir de auditoría
 SKIP_DIRS.update({".claude", "worktrees"})
@@ -67,22 +68,33 @@ def run_audit(job_id: int, repo_path: str):
                     update_phase(phase_map[f["rel"]], "error", str(e))
                 print(f"[auditor] error lote {i}: {e}")
 
-        if failed_batches:
-            detail = f"{failed_batches}/{len(batches)} lotes fallaron; no se genero informe parcial."
+        # Solo se aborta si fallaron TODOS los lotes (no hay nada que sintetizar).
+        # Si fallaron algunos, se genera informe PARCIAL con los que si salieron
+        # (synthesize_files ya ignora las fases en error) -- clave en repos grandes,
+        # donde algun lote petara por rate-limit pero el resto es util.
+        if failed_batches == len(batches):
+            detail = f"Todos los lotes ({failed_batches}) fallaron; sin informe."
             update_job(job_id, "error", detail)
             print(f"[auditor] job={job_id} ERROR {datetime.now():%H:%M:%S} -> {detail}")
+            send_telegram_message(f"⚠️ Auditoría de {repo_path} FALLÓ: {detail}")
             return
 
-        # 5. Síntesis bottom-up → EXECUTIVE_SUMMARY.md
+        # 5. Síntesis bottom-up → EXECUTIVE_SUMMARY.md (parcial si fallaron algunos)
         print(f"[auditor] job={job_id} síntesis")
         report_path = run_synthesis(job_id, repo_path)
 
-        update_job(job_id, "done")
+        if failed_batches:
+            nota = f"informe PARCIAL: fallaron {failed_batches}/{len(batches)} lotes (rate-limit u otros)"
+            update_job(job_id, "done", nota)
+            send_telegram_message(f"ℹ️ Auditoría de {repo_path}: {nota}. Informe generado con el resto.")
+        else:
+            update_job(job_id, "done")
         print(f"[auditor] job={job_id} DONE {datetime.now():%H:%M:%S} → {report_path}")
 
     except Exception as e:
         update_job(job_id, "error", str(e))
         print(f"[auditor] job={job_id} ERROR: {e}")
+        send_telegram_message(f"⚠️ Auditoría de {repo_path} FALLÓ: {e}")
 
 
 def start_audit_thread(repo_path: str) -> int:

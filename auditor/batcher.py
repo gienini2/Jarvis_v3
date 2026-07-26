@@ -15,6 +15,13 @@ CHARS_PER_TOKEN = 4
 # Si Ollama no responde, fallback seguro
 FALLBACK_CONTEXT = 32768
 
+# El auditor usa generate(intent="audit"), que el router manda PRIMERO a Groq
+# (free = 8000 tokens/min). Dimensionar los lotes al contexto de Ollama (32k)
+# hacia lotes de ~19k tokens -> 413 en Groq y timeout en el fallback local.
+# Cap por lote que cabe en Groq (deja sitio para prompt + respuesta) y que el
+# modelo local tambien procesa sin timeout.
+MAX_BATCH_TOKENS = 4000
+
 
 def get_model_context() -> int:
     """Consulta Ollama para saber el context_length real del modelo."""
@@ -49,12 +56,17 @@ def make_batches(files: list[dict]) -> list[list[dict]]:
     Cada archivo va con su contenido adjunto en el dict: file["content"].
     """
     ctx = get_model_context()
-    max_chars = int(ctx * 0.6) * CHARS_PER_TOKEN
+    max_tokens = min(int(ctx * 0.6), MAX_BATCH_TOKENS)   # cap para que quepa en Groq
+    max_chars = max_tokens * CHARS_PER_TOKEN
 
-    # Leer contenidos y adjuntarlos
+    # Leer contenidos y adjuntarlos. Un fichero mas grande que un lote se trunca
+    # (con marca) para que NINGUN lote se pase del limite del modelo -> antes un
+    # fichero grande iba solo pero enorme y daba 413 en Groq.
     enriched = []
     for f in files:
         content = read_file_safe(f["path"])
+        if len(content) > max_chars:
+            content = content[:max_chars] + "\n\n[... fichero truncado para el analisis: supera el tamano de un lote ...]"
         enriched.append({**f, "content": content})
 
     batches = []

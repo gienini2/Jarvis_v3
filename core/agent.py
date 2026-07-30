@@ -11,7 +11,7 @@ from core.tools import TOOLS, call_tool
 
 log = logging.getLogger("jarvis.agent")
 
-MAX_TOOL_ROUNDS = 4
+MAX_TOOL_ROUNDS = 6   # margen para peticiones multi-paso (varios borrados/cambios encadenados)
 MAX_TOOL_RESULT_CHARS = 3500   # red de seguridad; las tools ya devuelven resultados compactos
 
 # Prompt COMPACTO para el tool-calling. El SYSTEM_PROMPT largo de core/llm.py

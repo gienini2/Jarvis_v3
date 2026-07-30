@@ -236,6 +236,25 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_project_tasks",
+            "description": (
+                "Borra de golpe TODAS las tareas de un proyecto entero. Usar cuando el "
+                "usuario pida vaciar/limpiar/borrar todo un proyecto (ej. 'borra todo lo de "
+                "Calafell', 'estoy fuera de esa oposicion, quitala'). Una sola llamada en "
+                "vez de muchas delete_task, no hace falta identificar cada tarea."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project": {"type": "string", "description": "Nombre o id del proyecto a vaciar, ej. 'calafell', 'opos-mataro'"},
+                },
+                "required": ["project"],
+            },
+        },
+    },
     # ---- Fase 2.5 (05/07/2026): acciones reales con efecto fuera de Jarvis ---
     # A diferencia de Fase 1/2, estas tools mandan mensajes/correos reales o
     # modifican archivos de codigo con commit automatico. No hay paso de
@@ -610,6 +629,26 @@ def delete_task(task_ref: str) -> dict:
     return {"ok": True, "eliminada": t["title"], "project": t["project"]}
 
 
+def delete_project_tasks(project: str) -> dict:
+    """Borra de golpe TODAS las tareas de un proyecto. Evita tener que encadenar
+    N llamadas a delete_task (que agotaban las vueltas del agente). Borra por
+    indice descendente para que quitar una no descuadre los indices menores."""
+    from core.intent import PROJECT_ALIASES
+    pid = PROJECT_ALIASES.get(project.lower()) or find_project_id(project)
+    if not pid:
+        return {"error": f"No reconozco el proyecto '{project}'. Dime el nombre exacto del Centro de Mando."}
+    tasks = find_tasks_by_project(pid, exclude_done=False)
+    if not tasks:
+        return {"ok": True, "eliminadas": 0, "project": pid, "nota": "El proyecto no tenia tareas."}
+    titulos = [t["title"] for t in tasks]
+    # DESC: borrar el indice mas alto primero para no desplazar los menores
+    idxs = sorted((int(t["mando_key"].rsplit("_", 1)[1]) for t in tasks), reverse=True)
+    for idx in idxs:
+        _mando_delete_task(pid, idx)
+    sync_tasks_from_json()
+    return {"ok": True, "eliminadas": len(idxs), "project": pid, "titulos": titulos}
+
+
 # ---------------------------------------------------------------------------
 # Implementaciones -- Fase 2.5 (05/07/2026): acciones reales fuera de Jarvis
 # ---------------------------------------------------------------------------
@@ -811,6 +850,7 @@ FUNCTIONS = {
     "add_task": add_task,
     "update_task": update_task,
     "delete_task": delete_task,
+    "delete_project_tasks": delete_project_tasks,
     "send_telegram_message": send_telegram_message,
     "send_email": send_email,
     "create_calendar_event": create_calendar_event,

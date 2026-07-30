@@ -225,6 +225,23 @@ function addMsg(role, text, tag) {
   log.appendChild(el); log.scrollTop = log.scrollHeight;
   return el;
 }
+
+// Efecto maquina de escribir: revela la respuesta palabra a palabra (como la CLI)
+// y al terminar la renderiza como markdown formateado.
+async function typeInto(el, text) {
+  const body = el.lastElementChild;
+  const tokens = text.match(/\S+\s*/g) || [text];   // palabras con su espacio
+  const delay = tokens.length > 80 ? 6 : 18;         // respuestas largas, mas rapido
+  let acc = "";
+  for (const t of tokens) {
+    acc += t;
+    body.textContent = acc;
+    log.scrollTop = log.scrollHeight;
+    await new Promise(r => setTimeout(r, delay));
+  }
+  body.innerHTML = mdToHtml(text);
+  log.scrollTop = log.scrollHeight;
+}
 async function loadHistory() {
   try {
     const rows = await (await api("/history?limit=40")).json();
@@ -286,8 +303,10 @@ async function send() {
   busy = true; sendBtn.disabled = true;
   try {
     const data = await (await api("/chat", { method: "POST", body: JSON.stringify({ message: payload }) })).json();
-    pend.remove(); addMsg("assistant", data.response || "(sin respuesta)");
+    pend.remove();
+    const el = addMsg("assistant", "");
     attachments = []; renderChips(); setStatus(true, "conectado");
+    await typeInto(el, data.response || "(sin respuesta)");
   } catch (e) {
     pend.remove(); addMsg("assistant", "⚠️ " + e.message); setStatus(false, "error");
   } finally { busy = false; sendBtn.disabled = false; input.focus(); }

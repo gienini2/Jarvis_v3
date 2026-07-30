@@ -86,6 +86,7 @@ def run(user_prompt: str) -> str:
     if not (messages[-1]["role"] == "user" and messages[-1]["content"] == user_prompt):
         messages.append({"role": "user", "content": user_prompt})
 
+    executed = []
     for round_n in range(MAX_TOOL_ROUNDS):
         message = router.chat_tools(LLMRequest(prompt=messages, tools=TOOLS))
         tool_calls = message.get("tool_calls")
@@ -113,6 +114,7 @@ def run(user_prompt: str) -> str:
                 args = {}
             log.info(f"[agent] ronda={round_n} tool={fn_name} args={args}")
             result = call_tool(fn_name, args)
+            executed.append(fn_name)
             content = json.dumps(result, ensure_ascii=False, default=str)
             if len(content) > MAX_TOOL_RESULT_CHARS:
                 content = content[:MAX_TOOL_RESULT_CHARS] + " …(resultado truncado)"
@@ -133,4 +135,9 @@ def run(user_prompt: str) -> str:
     except Exception as e:
         log.warning(f"[agent] llamada final de sintesis fallo: {e}")
 
-    return "Me quede sin vueltas resolviendo esto -- demasiadas herramientas encadenadas. Prueba a pedirlo mas concreto."
+    hechas = ", ".join(dict.fromkeys(executed))
+    extra = f" Hasta aqui hice: {hechas}." if hechas else ""
+    return (
+        "La peticion necesitaba mas pasos de los que hago de una vez." + extra +
+        " Dime si sigo, o pidelo mas concreto (p.ej. 'vacia el proyecto X de golpe')."
+    )

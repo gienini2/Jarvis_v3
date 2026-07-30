@@ -95,6 +95,15 @@
   .tblwrap { overflow-x: auto; }
   .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--border); }
   .pill.done { color: var(--ok); } .pill.error { color: var(--danger); } .pill.running { color: var(--warn); }
+  .mrow { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .mrow:last-child { border-bottom: none; }
+  .mrow .t { flex: 1; word-break: break-word; }
+  .prio { font-size: 10px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); text-transform: uppercase; }
+  .prio.high { color: var(--danger); border-color: var(--danger); } .prio.mid { color: var(--warn); }
+  .iconbtn { background: none; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 14px; padding: 3px 9px; color: var(--text); }
+  .iconbtn:hover { border-color: var(--accent); } .iconbtn.danger:hover { border-color: var(--danger); }
+  .clearbtn { font-size: 12px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel2); color: var(--danger); cursor: pointer; }
+  .clearbtn:hover { border-color: var(--danger); }
 </style>
 </head>
 <body>
@@ -106,6 +115,7 @@
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="chat">💬 Chat</button>
+    <button class="tab-btn" data-tab="mando">📋 Centro de Mando</button>
     <button class="tab-btn" data-tab="alpha50">💪 Alpha50</button>
     <button class="tab-btn" data-tab="scan">🛰️ Netscan / Audit</button>
   </div>
@@ -125,6 +135,15 @@
       </div>
       <div class="hint">Enter envía · Shift+Enter nueva línea · 📎 adjunta archivos (se leen y se mandan como contexto)</div>
     </form>
+  </div>
+
+  <!-- ---------------- CENTRO DE MANDO ---------------- -->
+  <div class="tab-panel" id="panel-mando">
+    <div class="subtabs">
+      <span class="sub-title">📋 Tareas por proyecto · gestión directa</span>
+      <button class="sub-btn reload" id="reloadMando" title="Recargar">🔄</button>
+    </div>
+    <div class="pane" id="resMando"><div class="empty">Cargando…</div></div>
   </div>
 
   <!-- ---------------- ALPHA50 ---------------- -->
@@ -152,7 +171,7 @@ const $ = (s) => document.querySelector(s);
 const log = $("#log"), input = $("#input"), form = $("#form"),
       chipsBox = $("#chips"), sendBtn = $("#sendBtn"),
       dot = $("#dot"), statusText = $("#statusText"),
-      resAlpha = $("#resAlpha"), resScan = $("#resScan");
+      resAlpha = $("#resAlpha"), resScan = $("#resScan"), resMando = $("#resMando");
 
 const MAX_FILE = 80 * 1024, MAX_TOTAL = 200 * 1024;
 let attachments = [], busy = false, currentScanSub = "netscan";
@@ -200,6 +219,7 @@ function switchTab(name) {
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
   document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + name));
   if (name === "chat") input.focus();
+  if (name === "mando") loadMando();
   if (name === "alpha50") loadAlpha50();
   if (name === "scan") loadScan(currentScanSub);
 }
@@ -210,6 +230,7 @@ document.querySelectorAll(".sub-btn[data-sub]").forEach(b => b.onclick = () => {
   loadScan(currentScanSub);
 });
 $("#reloadAlpha").onclick = () => loadAlpha50();
+$("#reloadMando").onclick = () => loadMando();
 $("#reloadScan").onclick = () => loadScan(currentScanSub);
 
 // ---- Chat ----
@@ -315,6 +336,48 @@ input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey)
 form.addEventListener("submit", (e) => { e.preventDefault(); send(); });
 function autoGrow() { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, window.innerHeight * 0.4) + "px"; }
 input.addEventListener("input", autoGrow);
+
+// ---- Centro de Mando (gestion directa, sin LLM) ----
+async function loadMando() {
+  resMando.innerHTML = '<div class="empty">Cargando…</div>';
+  try { renderMando(await (await api("/mando/tasks")).json()); }
+  catch (e) { resMando.innerHTML = '<div class="empty">⚠️ ' + esc(e.message) + '</div>'; }
+}
+function renderMando(projects) {
+  if (!projects || !projects.length) { resMando.innerHTML = '<div class="empty">✅ No tienes tareas pendientes.</div>'; return; }
+  resMando.innerHTML = "";
+  for (const p of projects) {
+    const card = document.createElement("div"); card.className = "card";
+    const head = document.createElement("h3");
+    head.innerHTML = esc(p.project) + ' <span class="meta">(' + p.tasks.length + ')</span>';
+    const clr = document.createElement("button");
+    clr.className = "clearbtn"; clr.style.float = "right"; clr.textContent = "🗑 Vaciar";
+    clr.onclick = () => clearProject(p);
+    head.appendChild(clr); card.appendChild(head);
+    for (const t of p.tasks) {
+      const row = document.createElement("div"); row.className = "mrow";
+      row.innerHTML = '<span class="prio ' + esc(t.priority) + '">' + esc(t.priority) + '</span>' +
+                      '<span class="t">' + esc(t.title) + '</span>';
+      const done = document.createElement("button");
+      done.className = "iconbtn"; done.title = "Completar"; done.textContent = "✓";
+      done.onclick = () => taskAction("/mando/task/complete", { mando_key: t.mando_key });
+      const del = document.createElement("button");
+      del.className = "iconbtn danger"; del.title = "Borrar"; del.textContent = "🗑";
+      del.onclick = () => { if (confirm("¿Borrar «" + t.title + "»?")) taskAction("/mando/task/delete", { mando_key: t.mando_key }); };
+      row.appendChild(done); row.appendChild(del); card.appendChild(row);
+    }
+    resMando.appendChild(card);
+  }
+}
+async function taskAction(path, body) {
+  try { await api(path, { method: "POST", body: JSON.stringify(body) }); await loadMando(); }
+  catch (e) { alert("⚠️ " + e.message); }
+}
+async function clearProject(p) {
+  if (!confirm("¿Vaciar TODO «" + p.project + "» (" + p.tasks.length + " tareas)? No se puede deshacer.")) return;
+  try { await api("/mando/project/clear", { method: "POST", body: JSON.stringify({ project: p.project_id }) }); await loadMando(); }
+  catch (e) { alert("⚠️ " + e.message); }
+}
 
 // ---- Alpha50 ----
 async function loadAlpha50() {

@@ -262,3 +262,52 @@ def tasks_add_context(req: ContextRequest):
     if not ok:
         return JSONResponse(status_code=404, content={"error": "task not found"})
     return {"status": "ok"}
+
+
+# --- Centro de Mando: gestion visual de tareas (pestaña web, accion directa sin LLM) ---
+class MandoKeyReq(BaseModel):
+    mando_key: str
+
+
+class MandoProjectReq(BaseModel):
+    project: str
+
+
+@app.get("/mando/tasks")
+def mando_tasks():
+    """Tareas pendientes agrupadas por proyecto, con mando_key para poder actuar."""
+    from core.tasks import find_all_pending
+    grouped = {}
+    for t in find_all_pending(limit=500):
+        g = grouped.setdefault(t["project_id"], {
+            "project": t["project"], "project_id": t["project_id"], "tasks": []
+        })
+        g["tasks"].append({
+            "mando_key": t["mando_key"], "title": t["title"],
+            "priority": t["priority"], "status": t["status"],
+        })
+    return list(grouped.values())
+
+
+@app.post("/mando/task/complete")
+def mando_task_complete(req: MandoKeyReq):
+    from core.tasks import complete_task
+    return {"ok": complete_task(req.mando_key)}
+
+
+@app.post("/mando/task/delete")
+def mando_task_delete(req: MandoKeyReq):
+    from connectors.mando_tasks import delete_task as _del
+    try:
+        pid, idx = req.mando_key.rsplit("_", 1)
+        _del(pid, int(idx))
+        sync_tasks_from_json()
+        return {"ok": True}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
+@app.post("/mando/project/clear")
+def mando_project_clear(req: MandoProjectReq):
+    from core.tools import delete_project_tasks
+    return delete_project_tasks(req.project)

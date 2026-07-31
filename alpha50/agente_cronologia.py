@@ -283,23 +283,24 @@ def get_resumen_semana(semana_plan: int = None) -> dict:
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
 
+    programa = con.execute("SELECT * FROM estado_programa WHERE id=1").fetchone()
+    if not programa:
+        con.close()
+        return {"error": "Programa no iniciado."}
+    nivel = programa["nivel"]
     if semana_plan is None:
-        programa = con.execute("SELECT * FROM estado_programa WHERE id=1").fetchone()
-        if not programa:
-            con.close()
-            return {"error": "Programa no iniciado."}
         semana_plan = _calcular_semana_real(con, programa, date.today())
 
     dias = con.execute(
         "SELECT * FROM historial_dias WHERE semana_plan=? ORDER BY dia_plan",
         (semana_plan,)
     ).fetchall()
+    completa = _semana_completa(con, nivel, semana_plan)
     con.close()
 
     completados = sum(1 for d in dias if d["estado"] == "completado")
     parciales   = sum(1 for d in dias if d["estado"] == "parcial")
     saltados    = sum(1 for d in dias if d["estado"] == "saltado")
-    tiene_saltados = saltados > 0
 
     return {
         "semana_plan": semana_plan,
@@ -307,12 +308,35 @@ def get_resumen_semana(semana_plan: int = None) -> dict:
         "completados": completados,
         "parciales": parciales,
         "saltados": saltados,
-        "se_repetira_semana": tiene_saltados,
+        "se_repetira_semana": not completa,
         "detalle": [dict(d) for d in dias],
     }
 
 
 # ── HELPERS INTERNOS ─────────────────────────────────────────────────────────
+# Estados que cuentan como "entreno hecho" ese dia (fue, aunque fuera a medias).
+HECHO = ("completado", "parcial")
+
+
+def _semana_completa(con, nivel: str, semana: int) -> bool:
+    """True solo si TODOS los dias de entreno de la semana tienen entreno hecho
+    (completado o parcial). Un dia de entreno SIN registrar cuenta como NO hecho.
+
+    Este es el fix del bug: antes se miraba solo el estado 'saltado', asi que si
+    JP no entrenaba y no anotaba nada, no habia fila 'saltado' y la semana
+    avanzaba igual. Ahora, si falta el entreno de cualquier dia de entreno, la
+    semana NO se da por hecha y se repite."""
+    dias_entreno = [m["dia_plan"] for m in _calendario(nivel).values() if m["tipo"] != "descanso"]
+    for dp in dias_entreno:
+        row = con.execute(
+            "SELECT estado FROM historial_dias WHERE nivel=? AND semana_plan=? AND dia_plan=?",
+            (nivel, semana, dp),
+        ).fetchone()
+        if not row or row[0] not in HECHO:
+            return False
+    return True
+
+
 def _calcular_semana_real(con, programa, hoy: date) -> int:
     """
     Calcula la semana de plan real teniendo en cuenta repeticiones.
@@ -325,14 +349,10 @@ def _calcular_semana_real(con, programa, hoy: date) -> int:
     semana_real = programa["semana_plan"]
     semanas_extra = 0
 
-    # Contar cuántas semanas anteriores (del nivel actual) tuvieron saltados
+    # Contar cuántas semanas (del nivel actual) NO se completaron -> no avanzan.
+    # Incluye la semana en curso: mientras falten entrenos, no pasa de semana.
     for s in range(1, semana_real + semanas_calendario):
-        saltados = con.execute(
-            "SELECT COUNT(*) FROM historial_dias "
-            "WHERE nivel=? AND semana_plan=? AND estado='saltado'",
-            (programa["nivel"], s)
-        ).fetchone()[0]
-        if saltados > 0:
+        if not _semana_completa(con, programa["nivel"], s):
             semanas_extra += 1
 
     semana_real = min(
@@ -350,16 +370,10 @@ def _evaluar_avance_semana(con, nivel: str, semana_actual: int, hoy: date) -> di
     if hoy.weekday() != 6:  # No es domingo
         return {"accion": "ninguna"}
 
-    saltados = con.execute(
-        "SELECT COUNT(*) FROM historial_dias "
-        "WHERE nivel=? AND semana_plan=? AND estado='saltado'",
-        (nivel, semana_actual)
-    ).fetchone()[0]
-
-    if saltados > 0:
+    if not _semana_completa(con, nivel, semana_actual):
         return {
             "accion": "repetir_semana",
-            "motivo": f"{saltados} día(s) saltado(s)",
+            "motivo": "semana incompleta -- falta el entreno de algun dia",
             "semana_siguiente": semana_actual,
         }
 

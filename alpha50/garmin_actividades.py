@@ -160,12 +160,14 @@ def _stats_periodo(con, ini: str, fin: str) -> dict:
     fuerza = [r for r in rows if "strength" in (r["tipo"] or "")]
 
     reps_tot = 0
+    series_activas = 0
     volumen = 0.0
     for r in fuerza:
         for s in con.execute(
             "SELECT reps, peso FROM garmin_sets WHERE activity_id=? AND tipo_set='ACTIVE'",
             (r["activity_id"],)
         ):
+            series_activas += 1
             reps_tot += s["reps"] or 0
             volumen += (s["reps"] or 0) * (s["peso"] or 0)
 
@@ -176,8 +178,9 @@ def _stats_periodo(con, ini: str, fin: str) -> dict:
         "corr_vo2max":     max([r["vo2max"] for r in corr if r["vo2max"]], default=None),
         "corr_te_aerobico": _avg([r["te_aerobico"] for r in corr]),
         "fuerza_sesiones": len(fuerza),
+        "fuerza_series":   series_activas,       # series activas (util a peso corporal)
         "fuerza_reps":     reps_tot,
-        "fuerza_volumen_kg": round(volumen, 0),
+        "fuerza_volumen_kg": round(volumen, 0),  # solo relevante si hay peso (>0)
     }
 
 

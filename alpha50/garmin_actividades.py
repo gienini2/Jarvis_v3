@@ -147,6 +147,55 @@ def sincronizar_actividades(dias: int = 14, client=None) -> dict:
     return {"ok": True, "recibidas": len(acts), "guardadas": guardadas, "desde": desde}
 
 
+# ── PIEZA 2: AUTO-REGISTRO EN ALPHA50 ────────────────────────────────────────
+_CARDIO_GARMIN = ("running", "walking", "hiking", "cycling", "cardio",
+                  "hiit", "elliptical", "treadmill", "cross_training")
+
+
+def _encaja(dia_tipo: str, gtipos: list) -> bool:
+    """¿Alguna actividad de Garmin de ese día encaja con el tipo de entreno del
+    plan? musculacion -> necesita una de fuerza; el resto (cardio/hiit/anaerobico)
+    -> una de movimiento aeróbico. El tipo de actividad es fiable (los nombres de
+    ejercicio no)."""
+    tipos = [(t or "").lower() for t in gtipos]
+    if dia_tipo == "musculacion":
+        return any("strength" in t for t in tipos)
+    return any(any(c in t for c in _CARDIO_GARMIN) for t in tipos)
+
+
+def autoregistrar(dias: int = 14) -> dict:
+    """Pieza 2: si un día de entreno tiene actividad Garmin que encaja y NO está ya
+    registrado en Alpha50, lo marca 'completado'. RESPETA cualquier registro manual
+    previo (no lo pisa). Garmin hace de sensor: ni anotas a mano ni la semana
+    avanza/repite por falta de registro."""
+    try:
+        from alpha50.agente_cronologia import get_estado_hoy, registrar_dia
+    except ImportError:
+        from agente_cronologia import get_estado_hoy, registrar_dia
+
+    hoy = date.today()
+    con = _con()
+    garmin_por_fecha = {}
+    for row in con.execute(
+        "SELECT fecha, tipo FROM garmin_actividades WHERE fecha >= ?",
+        ((hoy - timedelta(days=dias)).isoformat(),)
+    ):
+        garmin_por_fecha.setdefault(row["fecha"], []).append(row["tipo"])
+    con.close()
+
+    registrados = []
+    for d in range(dias, -1, -1):                 # cronológico: viejo -> nuevo
+        fecha = hoy - timedelta(days=d)
+        est = get_estado_hoy(fecha)
+        if "error" in est or est["tipo"] == "descanso" or est["ya_registrado"]:
+            continue
+        gtipos = garmin_por_fecha.get(fecha.isoformat(), [])
+        if gtipos and _encaja(est["tipo"], gtipos):
+            registrar_dia("completado", hoy=fecha)
+            registrados.append(f"{fecha.isoformat()} ({est['tipo']})")
+    return {"ok": True, "registrados": registrados}
+
+
 def _avg(vals):
     vals = [v for v in vals if v is not None]
     return round(sum(vals) / len(vals), 1) if vals else None

@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     KIMI_API_KEY: str = ""
     KIMI_API_URL: str = "https://api.moonshot.ai/v1/chat/completions"
 
+    # Garmin (Alpha50). El scheduler hace load_dotenv; esto las expone tambien
+    # desde la API principal de Jarvis (que carga el .env via Pydantic, no en env).
+    GARMIN_EMAIL: str = ""
+    GARMIN_PASSWORD: str = ""
+
     LLM_TEMPERATURE: float = 0.2
     LLM_MAX_TOKENS: int = 2048
     OLLAMA_NUM_CTX: int = 4096   # 8192 dispara la latencia de Ollama en la RTX 5050 (~46s)

@@ -27,6 +27,15 @@ DB_PATH  = os.path.join(BASE_DIR, "alpha50_cronologia.db")
 # Credenciales Garmin — añadir al .env de Jarvis
 GARMIN_EMAIL    = os.environ.get("GARMIN_EMAIL", "")
 GARMIN_PASSWORD = os.environ.get("GARMIN_PASSWORD", "")
+# El scheduler hace load_dotenv (env), pero desde la API principal el .env solo
+# vive en settings (Pydantic). Fallback a settings para que Garmin funcione en ambos.
+if not GARMIN_EMAIL or not GARMIN_PASSWORD:
+    try:
+        from config.settings import settings
+        GARMIN_EMAIL    = GARMIN_EMAIL or getattr(settings, "GARMIN_EMAIL", "")
+        GARMIN_PASSWORD = GARMIN_PASSWORD or getattr(settings, "GARMIN_PASSWORD", "")
+    except Exception:
+        pass
 
 # Persistencia de sesión Garmin (tokens OAuth). Reutilizar la sesión evita el
 # login en cada arranque, que es la causa real del bloqueo 429 (rate limit).

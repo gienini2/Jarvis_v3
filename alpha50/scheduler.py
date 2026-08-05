@@ -259,6 +259,17 @@ def ejecutar_matutino():
         _marcar_matutino_lanzado()
     else:
         print("[Alpha50] Envío fallido (¿relay/Tailscale no listo?). Se reintentará.")
+
+    # Ingesta de actividades de Garmin (seguimiento de entrenos). Aquí la sesión
+    # de Garmin ya está caliente (token válido) -> sin logins extra ni 429.
+    # NUNCA debe romper el brief matutino, por eso va al final y en try/except.
+    try:
+        from garmin_actividades import sincronizar_actividades
+        r = sincronizar_actividades(dias=14)
+        print(f"[Alpha50] Garmin sync: {r.get('guardadas')} actividades desde {r.get('desde')}")
+    except Exception as e:
+        print(f"[Alpha50] Garmin sync falló (no crítico): {e}")
+
     return enviado
 
 

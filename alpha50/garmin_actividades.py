@@ -164,10 +164,12 @@ def _encaja(dia_tipo: str, gtipos: list) -> bool:
 
 
 def autoregistrar(dias: int = 14) -> dict:
-    """Pieza 2: si un día de entreno tiene actividad Garmin que encaja y NO está ya
-    registrado en Alpha50, lo marca 'completado'. RESPETA cualquier registro manual
-    previo (no lo pisa). Garmin hace de sensor: ni anotas a mano ni la semana
-    avanza/repite por falta de registro."""
+    """Pieza 2 (modelo de 3 estados). Para cada día de entreno NO registrado aún:
+      - actividad Garmin que ENCAJA con el tipo del plan -> 'completado'
+      - actividad pero de OTRO tipo (correr en día de fuerza)  -> 'otro'
+      - sin actividad -> se deja sin registrar (no entrenó)
+    RESPETA cualquier registro manual (no lo pisa) e ignora los días de descanso.
+    El plan sigue siendo el estándar: solo 'completado' hace avanzar la semana."""
     try:
         from alpha50.agente_cronologia import get_estado_hoy, registrar_dia
     except ImportError:
@@ -190,10 +192,70 @@ def autoregistrar(dias: int = 14) -> dict:
         if "error" in est or est["tipo"] == "descanso" or est["ya_registrado"]:
             continue
         gtipos = garmin_por_fecha.get(fecha.isoformat(), [])
-        if gtipos and _encaja(est["tipo"], gtipos):
-            registrar_dia("completado", hoy=fecha)
-            registrados.append(f"{fecha.isoformat()} ({est['tipo']})")
+        if not gtipos:
+            continue                              # sin actividad -> no entrenó
+        estado = "completado" if _encaja(est["tipo"], gtipos) else "otro"
+        registrar_dia(estado, hoy=fecha)
+        registrados.append(f"{fecha.isoformat()} ({est['tipo']} -> {estado})")
     return {"ok": True, "registrados": registrados}
+
+
+# ── LA BRONCA: repaso honesto del día (para el brief del día siguiente) ───────
+_TIPO_ES = {
+    "running": "correr", "walking": "caminar", "hiking": "caminata de montaña",
+    "cycling": "bici", "strength": "fuerza", "hiit": "HIIT", "elliptical": "elíptica",
+}
+
+
+def _nombre_actividad(a) -> str:
+    tipo = (a["tipo"] or "").lower()
+    verbo = next((v for k, v in _TIPO_ES.items() if k in tipo), tipo or "algo")
+    dur = a["duracion_s"]
+    km = a["distancia_m"]
+    extra = ""
+    if km and km > 100:
+        extra = f" {km/1000:.1f} km"
+    elif dur:
+        extra = f" {dur/60:.0f} min"
+    return verbo + extra
+
+
+def bronca_dia(fecha: date = None) -> str:
+    """Mensaje honesto sobre un día: qué tocaba vs qué hiciste. Pensado para el
+    brief del día siguiente por Telegram. El plan manda, pero se reconoce el
+    esfuerzo real y se canta la verdad cuando no se hace lo que toca."""
+    if fecha is None:
+        fecha = date.today() - timedelta(days=1)
+    try:
+        from alpha50.agente_cronologia import get_estado_hoy
+    except ImportError:
+        from agente_cronologia import get_estado_hoy
+
+    est = get_estado_hoy(fecha)
+    if "error" in est:
+        return ""
+    nombre, tipo, estado = est["nombre_dia"], est["tipo"], est.get("estado")
+
+    con = _con()
+    acts = con.execute(
+        "SELECT tipo, duracion_s, distancia_m FROM garmin_actividades WHERE fecha=?",
+        (fecha.isoformat(),)
+    ).fetchall()
+    con.close()
+    hizo = ", ".join(_nombre_actividad(a) for a in acts) if acts else None
+
+    if tipo == "descanso":
+        if acts:
+            return f"🗓️ Ayer ({nombre}) tocaba descanso y aun así te moviste ({hizo}). Extra 👍 — pero descansar también entrena."
+        return ""  # descanso sin nada: perfecto, no molestamos
+
+    if estado == "completado":
+        return f"✅ Ayer ({nombre}) tocaba {tipo} y lo hiciste. Así se hace, sigue."
+    if estado == "otro":
+        return (f"↔️ Ayer ({nombre}) tocaba {tipo} y en su lugar hiciste {hizo}. "
+                f"Te moviste 👍, pero no era lo que tocaba: la semana no la doy por hecha con eso.")
+    return (f"❌ Ayer ({nombre}) tocaba {tipo} y no consta que entrenaras. "
+            f"A darle hoy — no me lo dejes pasar.")
 
 
 def _avg(vals):

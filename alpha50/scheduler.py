@@ -264,15 +264,21 @@ def ejecutar_matutino():
     # de Garmin ya está caliente (token válido) -> sin logins extra ni 429.
     # NUNCA debe romper el brief matutino, por eso va al final y en try/except.
     try:
-        from garmin_actividades import sincronizar_actividades, autoregistrar
+        from datetime import timedelta as _td
+        from garmin_actividades import sincronizar_actividades, autoregistrar, bronca_dia
         r = sincronizar_actividades(dias=14)
         print(f"[Alpha50] Garmin sync: {r.get('guardadas')} actividades desde {r.get('desde')}")
-        # Pieza 2: auto-registrar los dias de entreno con actividad Garmin que encaje.
+        # Pieza 2: auto-registrar (completado / otro) segun lo entrenado ayer.
         ar = autoregistrar(dias=14)
         if ar.get("registrados"):
-            print(f"[Alpha50] Auto-registrados desde Garmin: {ar['registrados']}")
+            print(f"[Alpha50] Auto-registrados: {ar['registrados']}")
+        # La bronca del dia anterior: que tocaba vs que hiciste (por Telegram).
+        msg = bronca_dia(date.today() - _td(days=1))
+        if msg:
+            enviar_telegram(msg)
+            print("[Alpha50] Bronca del día anterior enviada")
     except Exception as e:
-        print(f"[Alpha50] Garmin sync/autoregistro falló (no crítico): {e}")
+        print(f"[Alpha50] Garmin sync/autoregistro/bronca falló (no crítico): {e}")
 
     return enviado
 

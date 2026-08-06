@@ -62,7 +62,10 @@ def _calendario(nivel: str) -> dict:
     return CALENDARIO_NIVEL.get(nivel, SEMANA_ALPHA50)
 
 
-ESTADOS_VALIDOS = ("completado", "parcial", "saltado", "descanso")
+ESTADOS_VALIDOS = ("completado", "parcial", "saltado", "descanso", "otro")
+# 'otro' = entrenó ese día, pero NO lo que tocaba (p.ej. correr en día de fuerza).
+# Queda constancia de que se movió, pero no completa el día del plan (la semana no
+# avanza por 'otro' -> el plan sigue siendo el estándar, y toca bronca).
 
 # Orden de progresión de niveles. Al completar la última semana de un nivel sin
 # días saltados, el programa avanza automáticamente al siguiente.

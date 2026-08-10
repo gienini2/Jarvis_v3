@@ -353,6 +353,28 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "repaso_entrenos",
+            "description": (
+                "Repaso de las metricas REALES de Garmin del entrenamiento: km corridos, "
+                "FC media, VO2max, sesiones de fuerza, series y reps, comparando el periodo "
+                "actual con el anterior para ver tendencia. Usar cuando pregunten como van "
+                "de forma, cuanto han corrido/entrenado, si mejoran, o pidan un repaso. "
+                "Complementa a query_alpha50_history (que da el plan/estados). Solo lectura."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "dias": {
+                        "type": "integer",
+                        "description": "Tamano del periodo a repasar en dias (se compara con el periodo previo de igual duracion). Por defecto 7.",
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "edit_code",
             "description": (
                 "Edita codigo de un repositorio conocido de Juan Pablo usando aider (mismo "
@@ -696,6 +718,17 @@ def query_alpha50_history(fecha: str = "", dias: int = 14) -> dict:
     return get_historial(fecha=fecha, dias=dias)
 
 
+def repaso_entrenos(dias: int = 7) -> dict:
+    try:
+        from alpha50.garmin_actividades import repaso
+    except Exception as e:
+        return {"error": f"No puedo cargar el modulo de actividades Garmin: {e}"}
+    try:
+        return repaso(dias=max(1, min(int(dias or 7), 90)))
+    except Exception as e:
+        return {"error": f"Fallo al hacer el repaso de entrenos: {e}"}
+
+
 def start_netscan(
     subnet: str = "",
     fast: bool = False,
@@ -855,6 +888,7 @@ FUNCTIONS = {
     "send_email": send_email,
     "create_calendar_event": create_calendar_event,
     "query_alpha50_history": query_alpha50_history,
+    "repaso_entrenos": repaso_entrenos,
     "edit_code": edit_code,
     "start_netscan": start_netscan,
 }

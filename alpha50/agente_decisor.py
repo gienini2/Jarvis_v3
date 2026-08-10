@@ -516,7 +516,9 @@ def procesar_respuesta(texto: str, contexto: dict = None) -> dict:
         ops = get_entreno(nivel, semana, dia).get("opciones", {})
         if opcion not in ops and texto_lower == "c" and "power_walking" in ops:
             opcion = "power_walking"
-        detalle = get_detalle_opcion(nivel, semana, dia, opcion)
+        # Mantener el recorte por disposición que se mostró en el resumen
+        factor_t = (contexto or {}).get("ajuste", {}).get("factor_tiempo", 1.0)
+        detalle = get_detalle_opcion(nivel, semana, dia, opcion, factor_t)
         return {
             "accion":           "mostrar_detalle",
             "opcion":           opcion,

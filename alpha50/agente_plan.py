@@ -350,7 +350,7 @@ def _formato_muscu_telegram(nivel, semana, dia_plan, muscu, dia_data=None) -> st
 
 # ── DETALLE DE UNA OPCIÓN CARDIO ─────────────────────────────────────────────
 def get_detalle_opcion(nivel: str, semana: int, dia_plan: int,
-                       opcion: str) -> dict:
+                       opcion: str, factor_t: float = 1.0) -> dict:
     """
     Devuelve el detalle de una opción cardio específica (carrera/bici/hiit)
     con el mensaje Telegram formateado para esa opción concreta.
@@ -370,11 +370,23 @@ def get_detalle_opcion(nivel: str, semana: int, dia_plan: int,
         "tipo": "cardio",
         "opcion": opcion,
         "datos": datos,
-        "mensaje_telegram": _detalle_opcion_telegram(nivel, semana, dia_plan, opcion, datos),
+        "mensaje_telegram": _detalle_opcion_telegram(nivel, semana, dia_plan, opcion, datos, factor_t),
     }
 
 
-def _detalle_opcion_telegram(nivel, semana, dia_plan, opcion, datos) -> str:
+def _reducir_tramo(valor, factor_t) -> str:
+    """Aplica el factor de disposición a un tramo tipo '30'' -> '24' _(plan: 30')_'."""
+    import re
+    if not valor or factor_t >= 1.0:
+        return valor
+    m = re.match(r"\s*(\d+)", str(valor))
+    if not m:
+        return valor
+    mins = int(m.group(1))
+    return f"{round(mins * factor_t)}' _(plan: {mins}')_"
+
+
+def _detalle_opcion_telegram(nivel, semana, dia_plan, opcion, datos, factor_t=1.0) -> str:
     emoji = EMOJI.get(opcion, "🏃")
     nombre = NOMBRES_DIA.get(dia_plan, f"Día {dia_plan}")
 
@@ -408,7 +420,10 @@ def _detalle_opcion_telegram(nivel, semana, dia_plan, opcion, datos) -> str:
             ("descanso_final",        "🏁 Bajada de pulsaciones"),
         ]:
             if datos.get(campo):
-                lineas.append(f"{etiqueta}: {datos[campo]}")
+                valor = datos[campo]
+                if campo == "continua":
+                    valor = _reducir_tramo(valor, factor_t)
+                lineas.append(f"{etiqueta}: {valor}")
 
     core = datos.get("core", {})
     if core:

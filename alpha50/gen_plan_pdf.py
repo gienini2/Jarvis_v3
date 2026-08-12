@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Genera el PDF del plan de fisicas Montornes optimizado con datos Garmin+alpha50.
-Castellano, con catalogo de sesiones (ejercicios exactos) y calendario dia a dia."""
+"""PDF del plan de fisicas Montornes (prueba 10-sep-2026), en castellano.
+Calibrado con datos reales (Garmin + alpha50) y las 5 pruebas reales de las bases.
+Foco: abdominales (unico test que no pasa). Formato calcado al Intermedio de alpha50."""
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib import colors
@@ -13,7 +14,6 @@ from reportlab.platypus import (
 
 OUT = r"C:\Users\Usuario\Downloads\plan_fisiques_montornes.pdf"
 
-# --- Paleta ---
 AZUL   = colors.HexColor("#1f3a5f")
 AZUL2  = colors.HexColor("#2e5c8a")
 VERDE  = colors.HexColor("#2e7d32")
@@ -22,21 +22,19 @@ AMBARBG= colors.HexColor("#fbe9cf")
 ROJO   = colors.HexColor("#b03030")
 ROJOBG = colors.HexColor("#f6dcdc")
 AZULBG = colors.HexColor("#dce8f4")
+VERDEBG= colors.HexColor("#e2f0e3")
 GRIS   = colors.HexColor("#54606e")
 GRISBG = colors.HexColor("#eef2f6")
 GRISLN = colors.HexColor("#d4dde6")
 
 styles = getSampleStyleSheet()
-
 def S(name, **kw):
-    kw.setdefault("parent", styles["Normal"])
-    return ParagraphStyle(name, **kw)
+    kw.setdefault("parent", styles["Normal"]); return ParagraphStyle(name, **kw)
 
 body   = S("body", fontName="Helvetica", fontSize=9.5, leading=13.5, textColor=colors.HexColor("#1a1a1a"), spaceAfter=5)
 bodys  = S("bodys", parent=body, fontSize=9, leading=12.5)
 h1     = S("h1", fontName="Helvetica-Bold", fontSize=15, leading=18, textColor=AZUL, spaceBefore=6, spaceAfter=4)
 h2     = S("h2", fontName="Helvetica-Bold", fontSize=11.5, leading=14, textColor=AZUL2, spaceBefore=9, spaceAfter=3)
-h3     = S("h3", fontName="Helvetica-Bold", fontSize=10, leading=13, textColor=AZUL, spaceBefore=4, spaceAfter=2)
 lead   = S("lead", fontName="Helvetica", fontSize=10, leading=15, textColor=colors.HexColor("#222"), spaceAfter=6)
 cell   = S("cell", fontName="Helvetica", fontSize=8.5, leading=11)
 cellb  = S("cellb", fontName="Helvetica-Bold", fontSize=8.5, leading=11)
@@ -46,292 +44,222 @@ ex     = S("ex", fontName="Helvetica", fontSize=9, leading=12.5, textColor=color
 
 def bullets(items, st=body):
     lf = [ListItem(Paragraph(it, st), value="square", bulletColor=AZUL2) for it in items]
-    return ListFlowable(lf, bulletType="bullet", start="square", leftIndent=12,
-                        bulletFontSize=5, spaceBefore=1, spaceAfter=1)
+    return ListFlowable(lf, bulletType="bullet", start="square", leftIndent=12, bulletFontSize=5, spaceBefore=1, spaceAfter=1)
 
 def header_footer(canvas, doc):
-    canvas.saveState()
-    w, h = A4
-    canvas.setFillColor(AZUL)
-    canvas.rect(0, h-26*mm, w, 26*mm, fill=1, stroke=0)
-    canvas.setFillColor(colors.white)
-    canvas.setFont("Helvetica-Bold", 15)
-    canvas.drawString(18*mm, h-14*mm, "PLAN DE ENTRENAMIENTO \u2014 PRUEBA F\u00cdSICA")
+    canvas.saveState(); w, h = A4
+    canvas.setFillColor(AZUL); canvas.rect(0, h-26*mm, w, 26*mm, fill=1, stroke=0)
+    canvas.setFillColor(colors.white); canvas.setFont("Helvetica-Bold", 15)
+    canvas.drawString(18*mm, h-14*mm, "PLAN DE PRUEBA F\u00cdSICA \u2014 4 SEMANAS")
     canvas.setFont("Helvetica", 9.5)
-    canvas.drawString(18*mm, h-20*mm, "Polic\u00eda Local de Montorn\u00e8s del Vall\u00e8s  \u00b7  Prueba de aptitud f\u00edsica: 10 septiembre 2026")
-    canvas.setFillColor(colors.HexColor("#bcd0e6"))
-    canvas.setFont("Helvetica-Bold", 9)
+    canvas.drawString(18*mm, h-20*mm, "Polic\u00eda Local de Montorn\u00e8s del Vall\u00e8s  \u00b7  Prueba f\u00edsica: 10 septiembre 2026, 10:00 h")
+    canvas.setFillColor(colors.HexColor("#bcd0e6")); canvas.setFont("Helvetica-Bold", 9)
     canvas.drawRightString(w-18*mm, h-15*mm, "Juan Pablo")
-    canvas.setStrokeColor(GRISLN); canvas.setLineWidth(0.5)
-    canvas.line(18*mm, 14*mm, w-18*mm, 14*mm)
+    canvas.setStrokeColor(GRISLN); canvas.setLineWidth(0.5); canvas.line(18*mm, 14*mm, w-18*mm, 14*mm)
     canvas.setFillColor(GRIS); canvas.setFont("Helvetica", 7.5)
-    canvas.drawString(18*mm, 9.5*mm, "Generado 12 ago 2026  \u00b7  Objetivo \u00fanico: course navette  \u00b7  Ajustar seg\u00fan sem\u00e1foro alpha50 y estado de la costilla")
+    canvas.drawString(18*mm, 9.5*mm, "Generado 12 ago 2026  \u00b7  Foco: abdominales  \u00b7  La costilla manda: ante molestia, bajar carga")
     canvas.drawRightString(w-18*mm, 9.5*mm, "P\u00e1g. %d" % doc.page)
     canvas.restoreState()
 
-doc = BaseDocTemplate(OUT, pagesize=A4, leftMargin=18*mm, rightMargin=18*mm,
-                      topMargin=30*mm, bottomMargin=17*mm)
+doc = BaseDocTemplate(OUT, pagesize=A4, leftMargin=18*mm, rightMargin=18*mm, topMargin=30*mm, bottomMargin=17*mm)
 doc.addPageTemplates([PageTemplate(id="all",
-    frames=[Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="main")],
-    onPage=header_footer)])
+    frames=[Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="main")], onPage=header_footer)])
 
 def box(flowables, bg=GRISBG, border=GRISLN, pad=8):
     t = Table([[flowables]], colWidths=[doc.width])
-    t.setStyle(TableStyle([
-        ("BACKGROUND",(0,0),(-1,-1),bg),("BOX",(0,0),(-1,-1),0.6,border),
+    t.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),bg),("BOX",(0,0),(-1,-1),0.6,border),
         ("LEFTPADDING",(0,0),(-1,-1),pad),("RIGHTPADDING",(0,0),(-1,-1),pad),
-        ("TOPPADDING",(0,0),(-1,-1),pad),("BOTTOMPADDING",(0,0),(-1,-1),pad),
-    ]))
+        ("TOPPADDING",(0,0),(-1,-1),pad),("BOTTOMPADDING",(0,0),(-1,-1),pad)]))
     return t
 
 story = []
 
-# ===== INTRO =====
+# INTRO
 story.append(Paragraph(
-    "Este plan sustituye a la versi\u00f3n gen\u00e9rica. Est\u00e1 calibrado con tus datos reales de Garmin "
-    "(VO<sub>2</sub>max, ritmos, frecuencia card\u00edaca, HRV, peso) y tu historial de alpha50. "
-    "El objetivo \u00fanico es la <b>course navette</b>: es la \u00fanica prueba que te excluye. Banca (36 rep) y "
-    "agilidad (19,5 s) ya las tienes resueltas \u2014 solo mantener.", lead))
+    "Est\u00e1s <b>admitido</b> (acc\u00e9s lliure, DNI ***4619**). El orden real de las pruebas se cambi\u00f3 por decreto: "
+    "cultural <b>8-sep</b>, f\u00edsica <b>10-sep 10:00</b> (Zona Esportiva, Gran Vial 3), catal\u00e1n <b>14-sep</b>. "
+    "Este plan ataca solo lo que decide tu 10 de septiembre.", lead))
 story.append(box([
-    Paragraph("<b>El n\u00famero que importa</b>", bodys),
-    Paragraph("Suelo de exclusi\u00f3n: <b>7,5 paliers</b> (1 punto). Objetivo operativo: <b>9 paliers</b> "
-              "para que tu suelo garantizado sea 8 \u2014 margen, no filo.", bodys),
+    Paragraph("<b>Las pruebas f\u00edsicas de Montorn\u00e8s (no hay navette)</b>", bodys),
+    Paragraph("Son 5 ejercicios, cada uno <b>Apto/No apto por separado</b>: hay que pasar los 5, sin compensaci\u00f3n. "
+              "Nada de press banca, agilidad ni course navette.", bodys),
 ], bg=AZULBG, border=AZUL2))
-story.append(Spacer(1, 8))
+story.append(Spacer(1,8))
 
-# ===== DATOS =====
-story.append(Paragraph("Lo que dicen tus datos (28 jul \u2013 12 ago)", h1))
+# ESTADO ACTUAL
+story.append(Paragraph("Tu estado hoy contra los 5 m\u00ednimos (hombre 41-52)", h1))
 story.append(HRFlowable(width="100%", thickness=1.2, color=AZUL, spaceAfter=6))
-story.append(Paragraph("El motor es mejor de lo que tem\u00edamos", h2))
-story.append(Paragraph(
-    "Tu <b>VO<sub>2</sub>max de Garmin es 45</b> (lleg\u00f3 a marcar 47), estable. El 6 de agosto hiciste una "
-    "carrera <b>real</b>: 4,32 km en 30 min a <b>7:00/km, FC media 145, FC m\u00e1x 168</b>. Eso corresponde a "
-    "<b>palier ~8</b> en la tabla de L\u00e9ger. No arrancas en 4-5: arrancas cerca de 7. El 7,5 no es el problema; "
-    "el 9 est\u00e1 a tiro.", body))
-story.append(Paragraph("Dos banderas rojas que el plan gen\u00e9rico ignoraba", h2))
-story.append(bullets([
-    "<b>Casi nunca corres \u2014 caminas.</b> Tu historial alpha50 est\u00e1 lleno de 'parcial': "
-    "\u00abcamin\u00e9 4,78 km\u00bb, \u00abcamin\u00e9 5,75 km\u00bb, \u00abhe caminado en vez de correr porque no pod\u00eda\u00bb (10 ago). "
-    "Solo hay UNA carrera continua real en dos semanas. Tienes el motor pero no lo usas.",
-    "<b>Tu recuperaci\u00f3n se est\u00e1 deteriorando</b> (no es opini\u00f3n, son tus n\u00fameros \u2014 tabla abajo).",
-]))
 data = [
-    [Paragraph("M\u00e9trica", cellwb), Paragraph("Mediados de julio", cellwb),
-     Paragraph("Ahora (5-12 ago)", cellwb), Paragraph("Lectura", cellwb)],
-    [Paragraph("HRV", cellb), Paragraph("40-44 balanced", cell), Paragraph("32-36 <b>unbalanced/low</b>", cell), Paragraph("bajando", cell)],
-    [Paragraph("FC reposo", cellb), Paragraph("47-49", cell), Paragraph("54-55", cell), Paragraph("subiendo", cell)],
-    [Paragraph("Body Battery", cellb), Paragraph("86-100", cell), Paragraph("36-51", cell), Paragraph("bajando", cell)],
-    [Paragraph("\u00cdndice disposici\u00f3n", cellb), Paragraph("78-88 (verde)", cell), Paragraph("57-65 (\u00e1mbar)", cell), Paragraph("bajando", cell)],
-    [Paragraph("Peso", cellb), Paragraph("98,7 kg", cell), Paragraph("100,7-101,7 kg", cell), Paragraph("<b>+2-3 kg</b>", cell)],
+    [Paragraph("Prueba", cellwb), Paragraph("M\u00ednimo", cellwb), Paragraph("Tu marca", cellwb), Paragraph("Estado", cellwb)],
+    [Paragraph("Velocidad 50 m", cellb), Paragraph("\u2264 9,1 s", cell), Paragraph("7,02 s (PB verano pasado)", cell), Paragraph("PASA", cellb)],
+    [Paragraph("Lanzamiento bal\u00f3n", cellb), Paragraph("\u2265 600 cm", cell), Paragraph("700 cm (bal\u00f3n 4 kg)", cell), Paragraph("PASA", cellb)],
+    [Paragraph("Salto horizontal", cellb), Paragraph("\u2265 110 cm", cell), Paragraph("210 cm (PB)", cell), Paragraph("PASA", cellb)],
+    [Paragraph("Resistencia 1 km", cellb), Paragraph("\u2264 4\u203250\u2033", cell), Paragraph("4\u203200\u2033 PB \u00b7 hoy navette 6 (34\u00b0C)", cell), Paragraph("PASA*", cellb)],
+    [Paragraph("Abdominales 1 min", cellb), Paragraph("\u2265 35", cell), Paragraph("22 y poco", cell), Paragraph("NO PASA", cellb)],
 ]
-t = Table(data, colWidths=[doc.width*0.24, doc.width*0.26, doc.width*0.30, doc.width*0.20])
-t.setStyle(TableStyle([
-    ("BACKGROUND",(0,0),(-1,0),AZUL),
-    ("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.white, GRISBG]),
-    ("BOX",(0,0),(-1,-1),0.6,GRISLN),("LINEBELOW",(0,0),(-1,-1),0.4,GRISLN),
-    ("VALIGN",(0,0),(-1,-1),"MIDDLE"),
-    ("TOPPADDING",(0,0),(-1,-1),4),("BOTTOMPADDING",(0,0),(-1,-1),4),
-    ("LEFTPADDING",(0,0),(-1,-1),6),("RIGHTPADDING",(0,0),(-1,-1),6),
-    ("TEXTCOLOR",(3,1),(3,-1),AMBAR),
-]))
-story.append(Spacer(1,3)); story.append(t); story.append(Spacer(1,4))
+t = Table(data, colWidths=[doc.width*0.24, doc.width*0.15, doc.width*0.42, doc.width*0.19])
+sty = [("BACKGROUND",(0,0),(-1,0),AZUL),("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.white, GRISBG]),
+    ("BOX",(0,0),(-1,-1),0.6,GRISLN),("LINEBELOW",(0,0),(-1,-1),0.4,GRISLN),("VALIGN",(0,0),(-1,-1),"MIDDLE"),
+    ("TOPPADDING",(0,0),(-1,-1),4),("BOTTOMPADDING",(0,0),(-1,-1),4),("LEFTPADDING",(0,0),(-1,-1),6),("RIGHTPADDING",(0,0),(-1,-1),6)]
+for r in range(1,5): sty.append(("TEXTCOLOR",(3,r),(3,r),VERDE))
+sty.append(("BACKGROUND",(0,5),(-1,5),ROJOBG)); sty.append(("TEXTCOLOR",(3,5),(3,5),ROJO))
+t.setStyle(TableStyle(sty))
+story.append(t); story.append(Spacer(1,4))
+story.append(Paragraph("<font size=8>*1 km: tu PB (4\u203200\u2033) es del verano pasado; con la costilla fisurada en Semana Santa bajaste forma. "
+    "Aun as\u00ed el corte (4\u203250\u2033) es holgado. <b>Verif\u00edcalo</b> con el test de 1 km y calibramos ritmos.</font>", bodys))
 story.append(Paragraph(
-    "HRV cayendo + FC reposo subiendo + peso subiendo = un cuerpo bajo estr\u00e9s que no recupera bien. Por eso el plan "
-    "es de m\u00e1x. 2 sesiones duras/semana gobernadas por tu sem\u00e1foro, no machaque diario.", bodys))
+    "Traducci\u00f3n: cuatro pruebas ya las tienes. <b>El plan es una cosa: subir abdominales de 22 a 35+</b>, y "
+    "mantener el resto sin oxidarlo. La costilla manda por encima de todo.", body))
 
-# ===== PALANCAS =====
-story.append(Paragraph("Las 3 palancas que priorizan tus datos", h1))
+# ESTRUCTURA
+story.append(Paragraph("Estructura semanal (formato Intermedio alpha50)", h1))
 story.append(HRFlowable(width="100%", thickness=1.2, color=AZUL, spaceAfter=6))
-for tit, txt in [
-    ("1. Convertir caminatas en carreras",
-     "No te falta volumen, te falta que lo que ya haces sea <b>correr</b>. Tienes fondo de sobra (caminas 5 km sin "
-     "problema); el salto es trotar esos mismos minutos."),
-    ("2. Bajar el peso",
-     "Vas en direcci\u00f3n contraria (+3 kg). Correr la navette con 98 kg en vez de 101 son <b>paliers gratis</b>: la "
-     "econom\u00eda de carrera depende del peso. Objetivo: <b>sub-98 para el 10-sep</b> (~0,5 kg/semana, d\u00e9ficit suave "
-     "+ prote\u00edna). La palanca m\u00e1s barata que tienes."),
-    ("3. Calidad sobre cantidad, gobernada por tu sem\u00e1foro",
-     "Las sesiones duras SOLO en d\u00edas verde o \u00e1mbar-alto. Si FC reposo \u226555 y HRV &lt;35 tres d\u00edas seguidos, "
-     "esa semana haces una sola sesi\u00f3n dura. Tus datos ya muestran fatiga: no negocies con esto."),
-]:
-    story.append(Paragraph(tit, h2)); story.append(Paragraph(txt, body))
-
-# ===== ZONAS =====
-story.append(Paragraph("Zonas a tus pulsaciones reales", h1))
-story.append(HRFlowable(width="100%", thickness=1.2, color=AZUL, spaceAfter=6))
-story.append(Paragraph("Calculadas con TUS n\u00fameros (FC reposo 54, FC m\u00e1x observada 168):", bodys))
-zdata = [
-    [Paragraph("Zona", cellwb), Paragraph("FC objetivo", cellwb), Paragraph("Ritmo aprox.", cellwb), Paragraph("Uso", cellwb)],
-    [Paragraph("F\u00e1cil / base aer\u00f3bica (Z2)", cellb), Paragraph("125-140", cell), Paragraph("~9:00/km", cell), Paragraph("Rodajes: <b>trotar</b>, donde ahora caminas", cell)],
-    [Paragraph("Tempo / umbral", cellb), Paragraph("150-160", cell), Paragraph("~6:45/km", cell), Paragraph("Tirada continua controlada", cell)],
-    [Paragraph("Intervalos VO<sub>2</sub>max", cellb), Paragraph("160-170", cell), Paragraph("por sensaci\u00f3n", cell), Paragraph("Casi al l\u00edmite (tu m\u00e1x es 168)", cell)],
+sdata = [
+    [Paragraph("D\u00eda", cellwb), Paragraph("Sesi\u00f3n", cellwb), Paragraph("Contenido", cellwb)],
+    [Paragraph("Lunes", cellwb), Paragraph("Carrera continua", cellb), Paragraph("Base aer\u00f3bica + <b>Abdominales A</b>", cell)],
+    [Paragraph("Martes", cellwb), Paragraph("Musculaci\u00f3n", cellb), Paragraph("Sentadillas + flexiones (superseries) + <b>Abdominales B</b>", cell)],
+    [Paragraph("Mi\u00e9rcoles", cellwb), Paragraph("Series velocidad", cellb), Paragraph("Progresivos + series cortas (para el 50 m) + <b>Abdominales A</b>", cell)],
+    [Paragraph("Jueves", cellwb), Paragraph("Descanso", cellb), Paragraph("Movilidad suave. Abs solo si la costilla est\u00e1 fina.", cell)],
+    [Paragraph("Viernes", cellwb), Paragraph("Espec\u00edfico 1 km", cellb), Paragraph("Series a ritmo objetivo (\u2264 4\u203250\u2033/km) + <b>Abdominales B</b>", cell)],
+    [Paragraph("S\u00e1bado", cellwb), Paragraph("Carrera + potencia", cellb), Paragraph("Rodaje/fartlek + saltos y lanzamiento (mantener) + <b>Abdominales A</b>", cell)],
+    [Paragraph("Domingo", cellwb), Paragraph("Descanso", cellb), Paragraph("Descanso total.", cell)],
 ]
-zt = Table(zdata, colWidths=[doc.width*0.30, doc.width*0.16, doc.width*0.17, doc.width*0.37])
-zt.setStyle(TableStyle([
-    ("BACKGROUND",(0,0),(-1,0),AZUL2),
-    ("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.white, GRISBG]),
-    ("BOX",(0,0),(-1,-1),0.6,GRISLN),("LINEBELOW",(0,0),(-1,-1),0.4,GRISLN),
-    ("VALIGN",(0,0),(-1,-1),"MIDDLE"),
-    ("TOPPADDING",(0,0),(-1,-1),4),("BOTTOMPADDING",(0,0),(-1,-1),4),
-    ("LEFTPADDING",(0,0),(-1,-1),6),("RIGHTPADDING",(0,0),(-1,-1),6),
-]))
-story.append(Spacer(1,3)); story.append(zt); story.append(Spacer(1,6))
+stt = Table(sdata, colWidths=[doc.width*0.13, doc.width*0.24, doc.width*0.63])
+ssty = [("BACKGROUND",(0,0),(-1,0),AZUL),("BACKGROUND",(0,1),(0,-1),AZUL2),
+    ("ROWBACKGROUNDS",(1,1),(-1,-1),[colors.white, GRISBG]),("BOX",(0,0),(-1,-1),0.6,GRISLN),
+    ("INNERGRID",(0,0),(-1,-1),0.4,GRISLN),("VALIGN",(0,0),(-1,-1),"MIDDLE"),
+    ("TOPPADDING",(0,0),(-1,-1),4),("BOTTOMPADDING",(0,0),(-1,-1),4),("LEFTPADDING",(0,0),(-1,-1),6),("RIGHTPADDING",(0,0),(-1,-1),6)]
+for r in (4,7): ssty.append(("BACKGROUND",(0,r),(-1,r),GRISBG))
+stt.setStyle(TableStyle(ssty))
+story.append(stt); story.append(Spacer(1,4))
+story.append(box([Paragraph("<b>Regla de oro:</b> si un d\u00eda vienes justo, se salta una carrera, <b>nunca los abdominales</b>. "
+    "Y si la costilla molesta en el sit-up, para y pasa a plancha ese d\u00eda.", bodys)], bg=AMBARBG, border=AMBAR))
 
-# ===== CATALOGO DE SESIONES =====
-story.append(Paragraph("Cat\u00e1logo de sesiones (los ejercicios exactos)", h1))
+# CATALOGO
+story.append(Paragraph("Cat\u00e1logo de sesiones", h1))
 story.append(HRFlowable(width="100%", thickness=1.2, color=AZUL, spaceAfter=4))
-story.append(Paragraph("El calendario de abajo te dice cada d\u00eda qu\u00e9 sesi\u00f3n toca. Aqu\u00ed tienes el "
-                       "desglose completo de cada una. Los ejercicios son a peso corporal (no tienes banca ni circuito).", bodys))
 
 def sesion(letra, titulo, color, items, nota=None):
-    head = Table([[Paragraph(letra, S("l", fontName="Helvetica-Bold", fontSize=13, textColor=colors.white, alignment=TA_CENTER)),
+    head = Table([[Paragraph(letra, S("l", fontName="Helvetica-Bold", fontSize=12, textColor=colors.white, alignment=TA_CENTER)),
                    Paragraph(titulo, S("st", fontName="Helvetica-Bold", fontSize=10.5, textColor=colors.white, leading=13))]],
                  colWidths=[9*mm, doc.width-9*mm])
-    head.setStyle(TableStyle([
-        ("BACKGROUND",(0,0),(-1,-1),color),("VALIGN",(0,0),(-1,-1),"MIDDLE"),
+    head.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),color),("VALIGN",(0,0),(-1,-1),"MIDDLE"),
         ("TOPPADDING",(0,0),(-1,-1),4),("BOTTOMPADDING",(0,0),(-1,-1),4),
-        ("LEFTPADDING",(0,0),(0,-1),0),("LEFTPADDING",(1,0),(1,-1),6),
-    ]))
-    inner = [bullets(items, ex)]
+        ("LEFTPADDING",(0,0),(0,-1),0),("LEFTPADDING",(1,0),(1,-1),6)]))
+    inner=[bullets(items, ex)]
     if nota:
         inner.append(Spacer(1,2)); inner.append(Paragraph(nota, S("n", fontName="Helvetica-Oblique", fontSize=8, textColor=GRIS, leading=11)))
     b = Table([[inner]], colWidths=[doc.width])
-    b.setStyle(TableStyle([
-        ("BACKGROUND",(0,0),(-1,-1),colors.white),("BOX",(0,0),(-1,-1),0.6,color),
-        ("LEFTPADDING",(0,0),(-1,-1),8),("RIGHTPADDING",(0,0),(-1,-1),8),
-        ("TOPPADDING",(0,0),(-1,-1),5),("BOTTOMPADDING",(0,0),(-1,-1),5),
-    ]))
-    return KeepTogether([head, b, Spacer(1,7)])
+    b.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,-1),colors.white),("BOX",(0,0),(-1,-1),0.6,color),
+        ("LEFTPADDING",(0,0),(-1,-1),8),("RIGHTPADDING",(0,0),(-1,-1),8),("TOPPADDING",(0,0),(-1,-1),5),("BOTTOMPADDING",(0,0),(-1,-1),5)]))
+    return KeepTogether([head, b, Spacer(1,6)])
 
 story.append(Spacer(1,4))
-story.append(sesion("A", "Intervalos \u2014 motor / VO\u2082max  (la sesi\u00f3n reina)", AMBAR, [
-    "<b>Calentamiento:</b> 10 min trote muy suave (FC &lt;140) + 5 min movilidad: rodillas al pecho, tal\u00f3n al gl\u00fateo, zancadas caminando, skipping suave.",
-    "<b>Serie principal:</b> 30/30 \u2192 30\" corriendo fuerte (FC 160-170, \u00abcasi al l\u00edmite\u00bb) + 30\" trote muy suave. N\u00famero de repes seg\u00fan la semana (ver calendario).",
-    "<b>Alternativa larga:</b> 4\u00d73 min fuerte (FC 160-168) con 2 min de trote entre series.",
-    "<b>Vuelta a la calma:</b> 5-8 min caminando + estirar cu\u00e1driceps, gemelo, isquios.",
-], "Es lo que m\u00e1s sube el motor en 4 semanas. Nunca dos d\u00edas seguidos con la sesi\u00f3n D."))
-story.append(sesion("B", "Fuerza mantenimiento \u2014 cuerpo entero (solo mochila cargada)", AZUL2, [
-    "Flexiones \u2014 4 \u00d7 m\u00e1ximas (o 12-15).",
-    "Sentadilla peso corporal \u2014 4 \u00d7 20.",
-    "Zancadas alternas caminando \u2014 3 \u00d7 12 por pierna.",
-    "Remo inclinado con mochila cargada \u2014 4 \u00d7 12 (equilibra el hombro, sustituye al tir\u00f3n).",
-    "Puente de gl\u00fateo \u2014 3 \u00d7 15.",
-    "Plancha frontal \u2014 3 \u00d7 45\".",
-    "Superman (lumbares) \u2014 3 \u00d7 15.",
-], "Circuito, 60-90\" de descanso entre ejercicios, 3-4 vueltas. Flexiones SIN guantes: as\u00ed el empuje es como el d\u00eda de la banca."))
-story.append(sesion("C", "Rodaje f\u00e1cil \u2014 base aer\u00f3bica", VERDE, [
-    "25-35 min continuos <b>corriendo</b> a FC 125-140 (~9:00/km).",
-    "Debes poder mantener una conversaci\u00f3n. Si la FC pasa de 140, baja el ritmo pero <b>NO camines</b>.",
-], "Este es el d\u00eda que antes caminabas. Aqu\u00ed se construye el fondo. Trotar, aunque sea lento."))
-story.append(sesion("D", "Navette espec\u00edfica + t\u00e9cnica de pivote", ROJO, [
-    "<b>Calentamiento:</b> 10 min trote + movilidad de tobillo y cadera.",
-    "<b>T\u00e9cnica de pivote (5-8 min):</b> marca 20 m. Haz 8-10 idas y vueltas practicando el giro: frena en 1 paso, pivota sobre el pie (NO giro circular), sal. Que sea autom\u00e1tico.",
-    "<b>Bloques:</b> corre de un extremo a otro a ritmo creciente hasta el palier objetivo de la semana, descansa 3 min caminando, repite. Usa la app Course Navette para los pitidos.",
-    "<b>Vuelta a la calma:</b> 5 min caminando + estiramientos.",
-], "Media navette se juega en no resbalar y en pivotar bien. Zapatilla con buen agarre lateral."))
-story.append(sesion("E", "Fuerza core + tobillo/gemelo \u2014 soporte para pivotes", GRIS, [
-    "Gemelos de pie \u2014 4 \u00d7 20 (clave para pivotar sin lesionar el tobillo).",
-    "Sentadilla isom\u00e9trica en pared \u2014 3 \u00d7 45\".",
-    "Zancada b\u00falgara (pie atr\u00e1s en una silla) \u2014 3 \u00d7 10 por pierna.",
-    "Plancha lateral \u2014 3 \u00d7 30\" por lado.",
-    "Dead bug \u2014 3 \u00d7 12.",
-    "Movilidad de cadera y tobillo \u2014 10 min.",
-], "Circuito ligero, 3 vueltas. Prepara el tobillo para los frenazos de la navette."))
+story.append(sesion("A", "Abdominales A \u2014 volumen (resistencia)", ROJO, [
+    "Calentamiento: plancha cl\u00e1sica 2\u00d730\u2033 + plancha lateral 2\u00d715\u2033 (protege la costilla).",
+    "Serie principal: crunch/sit-up controlado, <b>reps y series seg\u00fan la semana</b> (ver calendario), descanso 40-45\u2033.",
+    "Ritmo constante, exhala al subir. No a tir\u00f3n. Estiramiento suave al final.",
+], "Cuida la costilla: empieza con crunch parcial y sube a sit-up completo cuando no moleste."))
+story.append(sesion("B", "Abdominales B \u2014 espec\u00edfico prueba + test", ROJO, [
+    "T\u00e9cnica de la prueba: tumbado, rodillas flexionadas, pies juntos y sujetos, dedos entrelazados en la nuca; "
+    "<b>codos tocan rodillas</b> al subir y <b>espalda al suelo</b> al bajar.",
+    "Series a esa t\u00e9cnica (ver calendario) + <b>test de 1 minuto</b> los d\u00edas marcados: anota el n\u00famero.",
+    "Objetivo de ritmo el d\u00eda de la prueba: ~1 rep cada 1,6\u2033 = 35+ en el minuto.",
+], "El test de 1 min es tu term\u00f3metro semanal. Si la costilla avisa, ese d\u00eda solo t\u00e9cnica sin test."))
+story.append(sesion("C", "Carrera continua \u2014 base aer\u00f3bica", VERDE, [
+    "Calentamiento 10\u2032. Carrera continua a ritmo c\u00f3modo (poder hablar), <b>minutos seg\u00fan semana</b>. Descanso 2-3\u2032.",
+    "Core al final: plancha cl\u00e1sica 2\u00d730\u2033 + plancha lateral 4\u00d715\u2033. Estiramientos 10\u2032.",
+], "Mismo patr\u00f3n del Lunes de alpha50 Intermedio."))
+story.append(sesion("D", "Series de velocidad \u2014 para el 50 m", AMBAR, [
+    "Calentamiento 10\u2032 + progresivos 3\u00d740 m.",
+    "Series cortas (ver calendario): salidas y aceleraciones limpias, recuperaci\u00f3n completa entre repes.",
+    "Core: plancha 2\u00d730\u2033 + lateral 4\u00d715\u2033. Estiramientos.",
+], "El 50 m lo pasas de sobra; esto es para no perder la chispa de salida a 100 kg."))
+story.append(sesion("E", "Espec\u00edfico 1 km \u2014 asegurar el corte", AMBAR, [
+    "Calentamiento 10\u2032 + progresivos 3\u00d740 m.",
+    "Series a ritmo objetivo \u2264 4\u203250\u2033/km (= 1\u203256\u2033 por 400 m). Volumen seg\u00fan semana; un d\u00eda, <b>test de 1 km</b> completo.",
+    "Vuelta a la calma trotando + estiramientos.",
+], "Ritmos a afinar con tu test de 1 km. Con navette 6 en calor, el corte de 4\u203250\u2033 deber\u00eda quedar corto para ti."))
+story.append(sesion("F", "Musculaci\u00f3n \u2014 sentadillas + flexiones (superseries)", AZUL2, [
+    "Calentamiento 10\u2032. Superserie 1: flexiones de rodillas 4\u00d712 + media sentadilla 4\u00d715.",
+    "Superserie 2: flexi\u00f3n normal 3\u00d78 + sentadilla normal 3\u00d715.",
+    "Superserie 3: flexiones en 2 aperturas 4\u00d75 + sentadilla sumo 4\u00d710.",
+    "Descanso intra 15\u2033 / entre superseries 1\u203230\u2033. Estiramientos 10\u2032.",
+], "Copiado del Martes de alpha50 Intermedio S1. Mantiene salto y empuje del lanzamiento."))
+story.append(sesion("G", "Saltos + lanzamiento \u2014 mantenimiento de potencia", AZUL2, [
+    "Salto horizontal a pies juntos: 5-6 saltos m\u00e1ximos con recuperaci\u00f3n (t\u00e9cnica: brazos y bisagra de cadera).",
+    "Lanzamiento de bal\u00f3n medicinal a dos manos: 6-8 lanzamientos m\u00e1ximos.",
+], "Van pegados a la carrera del s\u00e1bado. Poco volumen: solo recordar el gesto, ya pasas ambos."))
 
-# ===== CALENDARIO DIA A DIA =====
+# CALENDARIO
 story.append(Paragraph("Calendario d\u00eda a d\u00eda", h1))
 story.append(HRFlowable(width="100%", thickness=1.2, color=AZUL, spaceAfter=4))
-story.append(Paragraph("Cada d\u00eda con nombre y fecha. La columna 'Sesi\u00f3n' te remite al cat\u00e1logo de arriba; "
-                       "el detalle es el ajuste concreto de esa semana. Colores: "
-                       "<font color='#e08a00'><b>\u25a0 dura</b></font>  "
-                       "<font color='#b03030'><b>\u25a0 navette/evento</b></font>  "
-                       "<font color='#2e7d32'><b>\u25a0 rodaje</b></font>  "
-                       "<font color='#2e5c8a'><b>\u25a0 fuerza</b></font>  "
-                       "<font color='#54606e'><b>\u25a0 descanso</b></font>.", bodys))
-
-KIND = {"dura":AMBARBG, "evento":ROJOBG, "rodaje":colors.HexColor("#e2f0e3"),
-        "fuerza":AZULBG, "descanso":GRISBG}
+story.append(Paragraph("Colores: <font color='#b03030'><b>\u25a0 abdominales/test</b></font>  "
+    "<font color='#2e7d32'><b>\u25a0 carrera</b></font>  <font color='#e08a00'><b>\u25a0 velocidad/1 km</b></font>  "
+    "<font color='#2e5c8a'><b>\u25a0 fuerza/potencia</b></font>  <font color='#54606e'><b>\u25a0 descanso</b></font>.", bodys))
+KIND = {"abs":ROJOBG, "carrera":VERDEBG, "vel":AMBARBG, "fuerza":AZULBG, "descanso":GRISBG}
 
 def semana(titulo, subt, filas):
-    rows = [[Paragraph("D\u00eda", cellwb), Paragraph("Sesi\u00f3n", cellwb), Paragraph("Qu\u00e9 haces hoy", cellwb)]]
-    styl = [
-        ("BACKGROUND",(0,0),(-1,0),AZUL),
-        ("BOX",(0,0),(-1,-1),0.6,GRISLN),("INNERGRID",(0,0),(-1,-1),0.4,GRISLN),
-        ("VALIGN",(0,0),(-1,-1),"MIDDLE"),
-        ("TOPPADDING",(0,0),(-1,-1),4),("BOTTOMPADDING",(0,0),(-1,-1),4),
-        ("LEFTPADDING",(0,0),(-1,-1),6),("RIGHTPADDING",(0,0),(-1,-1),6),
-    ]
-    for i,(dia, ses, det, kind) in enumerate(filas, start=1):
-        rows.append([Paragraph(dia, cellb), Paragraph(ses, cellb), Paragraph(det, cell)])
-        styl.append(("BACKGROUND",(0,i),(-1,i),KIND[kind]))
-    tt = Table(rows, colWidths=[doc.width*0.20, doc.width*0.26, doc.width*0.54])
-    tt.setStyle(TableStyle(styl))
-    head = Paragraph(titulo + "  <font size=8 color='#54606e'>" + subt + "</font>", h2)
-    return KeepTogether([head, Spacer(1,2), tt, Spacer(1,6)])
+    rows=[[Paragraph("D\u00eda", cellwb), Paragraph("Sesi\u00f3n", cellwb), Paragraph("Qu\u00e9 haces hoy", cellwb)]]
+    styl=[("BACKGROUND",(0,0),(-1,0),AZUL),("BOX",(0,0),(-1,-1),0.6,GRISLN),("INNERGRID",(0,0),(-1,-1),0.4,GRISLN),
+        ("VALIGN",(0,0),(-1,-1),"MIDDLE"),("TOPPADDING",(0,0),(-1,-1),4),("BOTTOMPADDING",(0,0),(-1,-1),4),
+        ("LEFTPADDING",(0,0),(-1,-1),6),("RIGHTPADDING",(0,0),(-1,-1),6)]
+    for i,(dia,ses,det,k) in enumerate(filas, start=1):
+        rows.append([Paragraph(dia,cellb),Paragraph(ses,cellb),Paragraph(det,cell)])
+        styl.append(("BACKGROUND",(0,i),(-1,i),KIND[k]))
+    tt=Table(rows, colWidths=[doc.width*0.19, doc.width*0.25, doc.width*0.56]); tt.setStyle(TableStyle(styl))
+    return KeepTogether([Paragraph(titulo+"  <font size=8 color='#54606e'>"+subt+"</font>", h2), Spacer(1,2), tt, Spacer(1,6)])
 
 story.append(Spacer(1,4))
-story.append(semana("Semana 1 \u2014 arranque + test", "mi\u00e9 12 \u2013 dom 16 ago  \u00b7  1 sesi\u00f3n dura (el propio test)", [
-    ("Mi\u00e9 12/08 (HOY)", "Test navette", "Calienta 10 min. Corre el test navette <b>hasta el fallo</b> con la app. <b>Anota el palier exacto</b> \u2014 es tu l\u00ednea base.", "evento"),
-    ("Jue 13/08", "Descanso", "Descanso o 15 min de movilidad suave.", "descanso"),
-    ("Vie 14/08", "Sesi\u00f3n C", "Rodaje f\u00e1cil 25 min corriendo a FC 125-140. Primer rodaje de verdad: trotar, no caminar.", "rodaje"),
-    ("S\u00e1b 15/08", "Sesi\u00f3n B", "Fuerza completa cuerpo entero (ver cat\u00e1logo B).", "fuerza"),
+story.append(semana("Semana 1 \u2014 arranque + referencias", "mi\u00e9 12 \u2013 dom 16 ago", [
+    ("Mi\u00e9 12/08 (HOY)", "Hecho: navette", "Ya corriste navette (6 paliers, 34\u00b0C). Referencia tomada. Descansa.", "descanso"),
+    ("Jue 13/08", "Test 1 km + Abs B", "<b>Test de 1 km</b> a tope (referencia). Suave. Luego Abs B: 4\u00d712 t\u00e9cnica + plancha 3\u00d730\u2033.", "abs"),
+    ("Vie 14/08", "Carrera continua + Abs A", "Sesi\u00f3n C: continua 25-30\u2032 c\u00f3moda. Abs A: 4\u00d715 crunch, desc 45\u2033.", "carrera"),
+    ("S\u00e1b 15/08", "Musculaci\u00f3n + Abs A", "Sesi\u00f3n F (sentadillas+flexiones). Abs A: 4\u00d715.", "fuerza"),
     ("Dom 16/08", "Descanso", "Descanso total.", "descanso"),
 ]))
-story.append(semana("Semana 2 \u2014 volumen / construcci\u00f3n", "lun 17 \u2013 dom 23 ago  \u00b7  2 duras", [
-    ("Lun 17/08", "Sesi\u00f3n A", "Intervalos 30/30 \u00d7 12.", "dura"),
-    ("Mar 18/08", "Sesi\u00f3n B", "Fuerza completa cuerpo entero.", "fuerza"),
-    ("Mi\u00e9 19/08", "Sesi\u00f3n C", "Rodaje f\u00e1cil 30 min a FC 125-140.", "rodaje"),
-    ("Jue 20/08", "Descanso", "Descanso o movilidad 15 min.", "descanso"),
-    ("Vie 21/08", "Sesi\u00f3n D", "Navette por bloques: hasta palier 6, descanso 3 min, \u00d7 3. + t\u00e9cnica de pivote.", "evento"),
-    ("S\u00e1b 22/08", "Sesi\u00f3n E", "Core + gemelo/tobillo.", "fuerza"),
+story.append(semana("Semana 2 \u2014 volumen", "lun 17 \u2013 dom 23 ago  \u00b7  primer test de abs", [
+    ("Lun 17/08", "Carrera continua + Abs A", "Continua 30\u2032. Abs A: 4\u00d716.", "carrera"),
+    ("Mar 18/08", "Musculaci\u00f3n + Abs B", "Sesi\u00f3n F. Abs B: 5\u00d712 estilo prueba.", "fuerza"),
+    ("Mi\u00e9 19/08", "Velocidad + Abs A", "Sesi\u00f3n D: progresivos + 5\u00d760 m. Abs A: 5\u00d716.", "vel"),
+    ("Jue 20/08", "Descanso", "Movilidad. Abs suave opcional si costilla fina.", "descanso"),
+    ("Vie 21/08", "1 km + Abs B", "Sesi\u00f3n E: 4\u00d7400 m a ritmo objetivo. <b>Abs B: test 1 min</b> (anota).", "abs"),
+    ("S\u00e1b 22/08", "Carrera + potencia + Abs A", "Fartlek 25\u2032 + Sesi\u00f3n G (saltos+lanzamiento). Abs A: 5\u00d718.", "carrera"),
     ("Dom 23/08", "Descanso", "Descanso total.", "descanso"),
 ]))
-story.append(semana("Semana 3 \u2014 pico", "lun 24 \u2013 dom 30 ago  \u00b7  2 duras + simulacro", [
-    ("Lun 24/08", "Sesi\u00f3n A", "Intervalos 30/30 \u00d7 15 (o 4\u00d73 min).", "dura"),
-    ("Mar 25/08", "Sesi\u00f3n B", "Fuerza completa cuerpo entero.", "fuerza"),
-    ("Mi\u00e9 26/08", "Sesi\u00f3n C", "Rodaje f\u00e1cil 35 min a FC 125-140.", "rodaje"),
-    ("Jue 27/08", "Descanso", "Descanso o movilidad 15 min.", "descanso"),
-    ("Vie 28/08", "Sesi\u00f3n D", "Navette por bloques: hasta palier 7, descanso 3 min, \u00d7 3. + pivotes.", "evento"),
-    ("S\u00e1b 29/08", "SIMULACRO", "D\u00eda real en orden: flexiones (banca) \u2192 20 min descanso \u2192 sprints+giros (agilidad) \u2192 20 min \u2192 <b>navette test #2</b>. Anota el palier, apunta a 8+.", "evento"),
+story.append(semana("Semana 3 \u2014 pico", "lun 24 \u2013 dom 30 ago  \u00b7  segundo test de abs", [
+    ("Lun 24/08", "Carrera continua + Abs A", "Continua 35\u2032. Abs A: 5\u00d720.", "carrera"),
+    ("Mar 25/08", "Musculaci\u00f3n + Abs B", "Sesi\u00f3n F. Abs B: 5\u00d715 estilo prueba.", "fuerza"),
+    ("Mi\u00e9 26/08", "Velocidad + Abs A", "Sesi\u00f3n D: progresivos + 6\u00d760 m r\u00e1pidos. Abs A: EMOM 10\u2032 (12 sit-ups/min).", "vel"),
+    ("Jue 27/08", "Descanso", "Movilidad. Costilla a punto para el pico.", "descanso"),
+    ("Vie 28/08", "1 km + Abs B", "Sesi\u00f3n E: 3\u00d7600 m a ritmo objetivo. <b>Abs B: 3\u00d7(1 min m\u00e1x)</b> desc 2\u2032 \u2014 apunta 30+.", "abs"),
+    ("S\u00e1b 29/08", "Simulacro + potencia", "Mini-simulacro: 50 m + salto + lanzamiento + 1 km, en orden. Anota todo.", "vel"),
     ("Dom 30/08", "Descanso", "Descanso total.", "descanso"),
 ]))
-story.append(semana("Semana 4 \u2014 descarga / tapering", "lun 31 ago \u2013 dom 6 sep  \u00b7  bajar volumen, mantener intensidad", [
-    ("Lun 31/08", "Sesi\u00f3n A", "Intervalos 30/30 \u00d7 10 (reducido, misma intensidad).", "dura"),
-    ("Mar 01/09", "Sesi\u00f3n E", "Core + gemelo ligero.", "fuerza"),
-    ("Mi\u00e9 02/09", "Sesi\u00f3n D", "Navette corta: hasta palier 7, \u00d7 2. <b>\u00daltima sesi\u00f3n exigente.</b>", "evento"),
-    ("Jue 03/09", "Rodaje suave", "20 min muy suave (FC &lt;135) o descanso si notas fatiga.", "rodaje"),
-    ("Vie 04/09", "Descanso", "Descanso o movilidad.", "descanso"),
-    ("S\u00e1b 05/09", "Activaci\u00f3n", "15 min: trote suave + 4-5 aceleraciones cortas de 15\". Piernas despiertas, sin fatiga.", "rodaje"),
+story.append(semana("Semana 4 \u2014 afinar + tapering", "lun 31 ago \u2013 mi\u00e9 10 sep  \u00b7  bajar volumen, llegar fresco", [
+    ("Lun 31/08", "Carrera suave + Abs A", "Continua 25\u2032 suave. Abs A: 4\u00d718.", "carrera"),
+    ("Mar 01/09", "Musculaci\u00f3n ligera + Abs B", "Sesi\u00f3n F al 70%. Abs B: 4\u00d715 t\u00e9cnica.", "fuerza"),
+    ("Mi\u00e9 02/09", "Velocidad corta + Abs A", "Progresivos + 4\u00d740 m. <b>Abs B: test 1 min</b> (\u00bfllegas a 35?).", "abs"),
+    ("Jue 03/09", "Descanso", "Movilidad suave.", "descanso"),
+    ("Vie 04/09", "Activaci\u00f3n 1 km + Abs suave", "Sesi\u00f3n E corta: 2\u00d7400 m. Abs: solo 3\u00d712 t\u00e9cnica, sin fallo.", "vel"),
+    ("S\u00e1b 05/09", "Rodaje suave", "15-20\u2032 trote + 3-4 aceleraciones de 15\u2033. Piernas despiertas.", "carrera"),
     ("Dom 06/09", "Descanso", "Descanso total.", "descanso"),
-]))
-story.append(semana("Semana 5 \u2014 semana de la prueba", "lun 7 \u2013 jue 10 sep  \u00b7  solo activaci\u00f3n, piernas frescas", [
-    ("Lun 07/09", "Activaci\u00f3n", "15 min trote suave + 3 aceleraciones de 15\". Movilidad. Nada exigente.", "rodaje"),
-    ("Mar 08/09", "PRUEBA CULTURAL", "Prueba cultural 10:00 (Teatre municipal). No entrenes fuerte. Caminar suave si acaso.", "evento"),
-    ("Mi\u00e9 09/09", "Descanso", "<b>Descanso total</b> o caminar 15 min. Hidrataci\u00f3n y sue\u00f1o. Piernas frescas para ma\u00f1ana.", "descanso"),
-    ("Jue 10/09", "PRUEBA F\u00cdSICA", "Prueba f\u00edsica 10:00 (Zona Esportiva, Gran Vial 3). Calienta bien antes de la navette. \u00a1A por el 9!", "evento"),
+    ("Lun 07/09", "Activaci\u00f3n", "15\u2032 trote + 3 aceleraciones. Movilidad. Nada exigente.", "carrera"),
+    ("Mar 08/09", "PRUEBA CULTURAL", "Cultural 10:00 (Teatre municipal). Lleva bol\u00edgrafo. No entrenes fuerte.", "abs"),
+    ("Mi\u00e9 09/09", "Descanso total", "Descanso o caminar 15\u2032. Sue\u00f1o e hidrataci\u00f3n. Piernas frescas.", "descanso"),
+    ("Jue 10/09", "PRUEBA F\u00cdSICA", "10:00 (Zona Esportiva, Gran Vial 3). Certificado m\u00e9dico. Calienta bien. \u00a1A por los 5!", "abs"),
 ]))
 
-# Regla de oro
-story.append(box([
-    Paragraph("<b>Regla de oro (tu sem\u00e1foro manda por encima del calendario)</b>", bodys),
-    Paragraph("Cada ma\u00f1ana: si alpha50 da <b>verde / \u00e1mbar-alto</b> \u2192 la sesi\u00f3n del d\u00eda como toca. "
-              "Si <b>\u00e1mbar-bajo / naranja</b> \u2192 convierte la sesi\u00f3n dura en rodaje f\u00e1cil o descanso. "
-              "Si FC reposo \u226555 y HRV &lt;35 tres d\u00edas seguidos \u2192 esa semana <b>solo UNA</b> sesi\u00f3n dura. "
-              "Y si la costilla avisa, para: ninguna sesi\u00f3n vale una reca\u00edda.", bodys),
-], bg=AMBARBG, border=AMBAR))
-story.append(Spacer(1,8))
-
-# ===== RECORDATORIOS =====
-rec_head = Paragraph("Recordatorios que tambi\u00e9n excluyen", h2)
+# RECORDATORIOS
+rec_head = Paragraph("No lo olvides (excluye igual)", h2)
 rec = [
-    Paragraph("\u2022 <b>El peso es la palanca m\u00e1s barata</b>, y va mal (+3 kg). -3 kg te dan navette sin correr un metro m\u00e1s. Prioridad diaria.", bodys),
-    Paragraph("\u2022 <b>Certificado m\u00e9dico oficial</b> el d\u00eda 10 (firmado, colegiado, sello, emitido como m\u00e1x. 3 meses antes, que haga constar la altura). Sin \u00e9l: exclusi\u00f3n autom\u00e1tica.", bodys),
-    Paragraph("\u2022 <b>Ropa y calzado deportivo</b>. Zapatilla con agarre lateral para los pivotes.", bodys),
-    Paragraph("\u2022 <b>Banca:</b> sin guantes, sin magnesio (lo proh\u00edbe el decreto). Entrena las flexiones sin ellos.", bodys),
-    Paragraph("\u2022 <b>Agilidad:</b> 2 intentos, vale el mejor. <b>Banca y navette:</b> un solo intento \u2014 por eso el simulacro del 29/08 importa tanto.", bodys),
-    Paragraph("\u2022 <b>Material navette:</b> app 'Course Navette' / 'Test de L\u00e9ger' (gratis) + 20 m medidos con cinta en cualquier sitio llano.", bodys),
+    Paragraph("\u2022 <b>Certificado m\u00e9dico oficial</b> el 10-sep: colegiado, sellado, emitido m\u00e1x. 3 meses antes, haciendo constar que est\u00e1s apto para las pruebas. Sin \u00e9l: exclusi\u00f3n autom\u00e1tica.", bodys),
+    Paragraph("\u2022 <b>Ropa y calzado deportivo.</b> Bal\u00f3n medicinal de la prueba suele ser de 3 kg (entrenas con 4, mejor).", bodys),
+    Paragraph("\u2022 <b>Abdominales:</b> un ayudante te sujeta los pies; repite hasta que suene el minuto. Es tu \u00fanica prueba en riesgo: no la descuides ni un d\u00eda.", bodys),
+    Paragraph("\u2022 <b>Costilla flotante:</b> ante dolor puntual, cambia sit-up por plancha ese d\u00eda. El plan sube solo si la costilla lo permite.", bodys),
+    Paragraph("\u2022 <b>Peso:</b> lo llevas con el plan de mentorizados de alpha50. Cada kg menos protege sprint, salto y 1 km (y la m\u00e9dica futura).", bodys),
 ]
-story.append(KeepTogether([rec_head, Spacer(1,2), box(rec, bg=colors.HexColor("#eef6ef"), border=VERDE)]))
+story.append(KeepTogether([rec_head, Spacer(1,2), box(rec, bg=VERDEBG, border=VERDE)]))
 
 doc.build(story)
 print("OK ->", OUT)

@@ -7,7 +7,7 @@
 <style>
   :root {
     --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --border: #2a2f3a;
-    --text: #e6e9ef; --muted: #8b93a3; --accent: #4f8cff; --user: #2b4a8b;
+    --text: #e6e9ef; --muted: #8b93a3; --accent: #4f8cff; --user: #3f6fe0;
     --assistant: #1e222b; --danger: #ff6b6b; --ok: #3ecf8e; --warn: #ffb454;
   }
   @media (prefers-color-scheme: light) {
@@ -47,18 +47,34 @@
   .tab-panel.active { display: flex; }
 
   /* --- Chat --- */
-  #log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-  .msg { max-width: min(760px, 92%); padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; word-wrap: break-word; }
-  .msg.user { align-self: flex-end; background: var(--user); border-bottom-right-radius: 4px; }
-  .msg.assistant { align-self: flex-start; background: var(--assistant); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
-  .msg .tag { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
-  .msg.pending { opacity: .6; font-style: italic; }
-  .msg strong { font-weight: 700; }
-  .msg em { font-style: italic; }
-  .msg code { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 90%; }
-  .msg ul, .msg ol { margin: 6px 0; padding-left: 22px; }
-  .msg li { margin: 3px 0; }
+  #panel-chat { position: relative; }
+  #log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+  .turn { display: flex; gap: 9px; align-items: flex-start; max-width: min(820px, 96%); animation: rise .35s ease both; }
+  .turn.user { flex-direction: row-reverse; align-self: flex-end; }
+  .turn.assistant { align-self: flex-start; }
+  .av { flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; margin-top: 2px; user-select: none; }
+  .av.bot { background: rgba(79,140,255,.16); }
+  .av.me { background: var(--panel2); }
+  .bubble { padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; word-wrap: break-word; min-width: 0; }
+  .turn.user .bubble { background: var(--user); color: #fff; border-bottom-right-radius: 4px; }
+  .turn.assistant .bubble { background: var(--assistant); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .bubble .tag { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+  .bubble strong { font-weight: 700; }
+  .bubble em { font-style: italic; }
+  .bubble code { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 90%; }
+  .bubble pre { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 8px 0; overflow-x: auto; }
+  .bubble pre code { background: none; border: none; padding: 0; font-size: 90%; }
+  .bubble ul, .bubble ol { margin: 6px 0; padding-left: 22px; }
+  .bubble li { margin: 3px 0; }
+  .turn.typing .bubble { display: flex; gap: 5px; align-items: center; padding: 13px 15px; }
+  .dotpulse { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite both; }
+  .dotpulse:nth-child(2) { animation-delay: .2s; } .dotpulse:nth-child(3) { animation-delay: .4s; }
   .empty { color: var(--muted); text-align: center; margin: auto; padding: 20px; }
+  .newpill { position: absolute; left: 50%; transform: translateX(-50%); bottom: 96px; z-index: 5; background: var(--accent); color: #fff; border: none; font-size: 12px; padding: 5px 14px; border-radius: 999px; cursor: pointer; box-shadow: 0 3px 12px rgba(0,0,0,.4); display: none; }
+  .newpill.show { display: inline-flex; gap: 5px; align-items: center; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes blink { 0%,80%,100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
+  @media (prefers-reduced-motion: reduce) { .turn { animation: none; } .dotpulse { animation: none; opacity: .6; } }
 
   form { border-top: 1px solid var(--border); background: var(--panel); padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
   #chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
@@ -123,6 +139,7 @@
   <!-- ---------------- CHAT ---------------- -->
   <div class="tab-panel active" id="panel-chat">
     <div id="log"><div class="empty">Cargando historial…</div></div>
+    <button type="button" id="newpill" class="newpill">↓ nuevo mensaje</button>
     <form id="form">
       <div id="chips"></div>
       <div class="row">
@@ -195,6 +212,12 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<":
 // Markdown ligero: negrita, código, listas y saltos. Escapa HTML primero (seguro).
 function mdToHtml(src) {
   let s = esc(src);
+  // Bloques de código ```...``` — se extraen antes para no tocar su interior.
+  const blocks = [];
+  s = s.replace(/```[^\n]*\n([\s\S]*?)```/g, (m, code) => {
+    blocks.push(code.replace(/\n$/, ""));
+    return " B" + (blocks.length - 1) + " ";
+  });
   s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
   s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   const lines = s.split("\n");
@@ -204,13 +227,15 @@ function mdToHtml(src) {
     const mUl = line.match(/^\s*[-*]\s+(.*)$/);
     const mOl = line.match(/^\s*\d+[.)]\s+(.*)$/);
     const mH = line.match(/^\s*#{1,4}\s+(.*)$/);
-    if (mUl) { if (ol) { out += "</ol>"; ol = false; } if (!ul) { out += "<ul>"; ul = true; } out += "<li>" + mUl[1] + "</li>"; }
+    if (line.indexOf(" B") === 0) { close(); out += line; }
+    else if (mUl) { if (ol) { out += "</ol>"; ol = false; } if (!ul) { out += "<ul>"; ul = true; } out += "<li>" + mUl[1] + "</li>"; }
     else if (mOl) { if (ul) { out += "</ul>"; ul = false; } if (!ol) { out += "<ol>"; ol = true; } out += "<li>" + mOl[1] + "</li>"; }
     else if (mH) { close(); out += "<strong>" + mH[1] + "</strong><br>"; }
     else if (line.trim() === "") { close(); out += "<br>"; }
     else { close(); out += line + "<br>"; }
   }
   close();
+  out = out.replace(/ B(\d+) /g, (m, i) => "<pre><code>" + blocks[i] + "</code></pre>");
   return out;
 }
 
@@ -234,34 +259,61 @@ $("#reloadMando").onclick = () => loadMando();
 $("#reloadScan").onclick = () => loadScan(currentScanSub);
 
 // ---- Chat ----
+const newpill = $("#newpill");
+// Solo autoscroll si el usuario ya está cerca del fondo; si no, avisa con el pill.
+function nearBottom() { return log.scrollHeight - log.scrollTop - log.clientHeight < 80; }
+function showPill() { newpill.classList.add("show"); }
+function hidePill() { newpill.classList.remove("show"); }
+function maybeScroll(force) {
+  if (force || nearBottom()) { log.scrollTop = log.scrollHeight; hidePill(); }
+  else showPill();
+}
+newpill.onclick = () => { log.scrollTop = log.scrollHeight; hidePill(); };
+log.addEventListener("scroll", () => { if (nearBottom()) hidePill(); });
+
 function addMsg(role, text, tag) {
   const empty = log.querySelector(".empty"); if (empty) empty.remove();
-  const el = document.createElement("div");
-  el.className = "msg " + (role === "user" ? "user" : "assistant");
-  if (tag) { const t = document.createElement("div"); t.className = "tag"; t.textContent = tag; el.appendChild(t); }
-  const body = document.createElement("div");
+  const turn = document.createElement("div");
+  turn.className = "turn " + (role === "user" ? "user" : "assistant");
+  const av = document.createElement("div");
+  av.className = "av " + (role === "user" ? "me" : "bot");
+  av.textContent = role === "user" ? "🧑" : "🤖";
+  const bubble = document.createElement("div"); bubble.className = "bubble";
+  if (tag) { const t = document.createElement("div"); t.className = "tag"; t.textContent = tag; bubble.appendChild(t); }
+  const body = document.createElement("div"); body.className = "body";
   if (role === "user") body.textContent = text;      // input propio: texto plano
   else body.innerHTML = mdToHtml(text);              // respuesta: markdown formateado
-  el.appendChild(body);
-  log.appendChild(el); log.scrollTop = log.scrollHeight;
-  return el;
+  bubble.appendChild(body);
+  turn.appendChild(av); turn.appendChild(bubble);
+  log.appendChild(turn); maybeScroll(role === "user");
+  return turn;
+}
+// Indicador "escribiendo…" con tres puntos que laten.
+function addTyping() {
+  const empty = log.querySelector(".empty"); if (empty) empty.remove();
+  const turn = document.createElement("div");
+  turn.className = "turn assistant typing";
+  turn.innerHTML = '<div class="av bot">🤖</div><div class="bubble">' +
+    '<span class="dotpulse"></span><span class="dotpulse"></span><span class="dotpulse"></span></div>';
+  log.appendChild(turn); maybeScroll(true);
+  return turn;
 }
 
 // Efecto maquina de escribir: revela la respuesta palabra a palabra (como la CLI)
 // y al terminar la renderiza como markdown formateado.
 async function typeInto(el, text) {
-  const body = el.lastElementChild;
+  const body = el.querySelector(".body");
   const tokens = text.match(/\S+\s*/g) || [text];   // palabras con su espacio
   const delay = tokens.length > 80 ? 6 : 18;         // respuestas largas, mas rapido
   let acc = "";
   for (const t of tokens) {
     acc += t;
     body.textContent = acc;
-    log.scrollTop = log.scrollHeight;
+    maybeScroll(false);
     await new Promise(r => setTimeout(r, delay));
   }
   body.innerHTML = mdToHtml(text);
-  log.scrollTop = log.scrollHeight;
+  maybeScroll(false);
 }
 async function loadHistory() {
   try {
@@ -320,7 +372,7 @@ async function send() {
   addMsg("user", shown || "(archivos adjuntos)");
   const payload = buildMessage(text);
   input.value = ""; autoGrow();
-  const pend = addMsg("assistant", "escribiendo…"); pend.classList.add("pending");
+  const pend = addTyping();
   busy = true; sendBtn.disabled = true;
   try {
     const data = await (await api("/chat", { method: "POST", body: JSON.stringify({ message: payload }) })).json();

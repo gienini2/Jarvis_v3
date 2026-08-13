@@ -400,6 +400,58 @@ TOOLS = [
             },
         },
     },
+    # ---- Fase 3 (ADR-0002): autoampliacion supervisada ----------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "self_extend",
+            "description": (
+                "Pone en PRODUCCION un cambio del propio codigo de Jarvis de forma segura: "
+                "instala dependencias, reinicia Jarvis para cargar el codigo nuevo y valida "
+                "que sigue vivo, con AUTO-REVERT del commit si algo falla. Usar SIEMPRE "
+                "DESPUES de edit_code (que ya deja el cambio como un commit) cuando el cambio "
+                "sea una capacidad nueva de Jarvis que requiera reiniciar o instalar un paquete "
+                "(p.ej. una tool nueva). No usar para editar otros repos de Juan Pablo -- eso "
+                "es solo edit_code. Es asincrono: Jarvis se reinicia y avisa por Telegram del "
+                "resultado. Si un paquete no esta permitido, esta tool lo dice al momento."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "packages": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Dependencias pip que el codigo nuevo necesita, ej. ['pypdf']. "
+                            "Vacio si no hace falta instalar nada. Deben estar en la whitelist."
+                        ),
+                    },
+                    "smoke_tool": {
+                        "type": "string",
+                        "description": (
+                            "Nombre de la tool nueva a ejecutar como prueba real tras reiniciar. "
+                            "Si falla, se revierte. Vacio para validar solo que Jarvis arranca."
+                        ),
+                    },
+                    "smoke_args": {
+                        "type": "object",
+                        "description": "Argumentos para smoke_tool. Vacio si no aplica.",
+                    },
+                    "label": {
+                        "type": "string",
+                        "description": "Nombre corto del cambio para el aviso, ej. 'lector de PDF'.",
+                    },
+                    "repo": {
+                        "type": "string",
+                        "description": (
+                            "Ruta del repo a poner en produccion. Vacio = el propio Jarvis "
+                            "(lo normal). Debe ser un repo conocido."
+                        ),
+                    },
+                },
+            },
+        },
+    },
     # ---- Ciberseguridad (08/07/2026): auditoria DEFENSIVA de red propia ------
     {
         "type": "function",
@@ -871,6 +923,58 @@ def edit_code(path: str, instruction: str) -> dict:
     }
 
 
+def self_extend(
+    packages: list = None,
+    smoke_tool: str = "",
+    smoke_args: dict = None,
+    label: str = "cambio",
+    repo: str = "",
+    commit: str = "",
+) -> dict:
+    """Lanza el bucle de autoampliacion supervisada (ADR-0002) sobre un commit ya
+    hecho por edit_code. Reusa la whitelist de rutas de start_audit/edit_code y
+    pre-chequea la whitelist de paquetes AQUI para que el LLM reciba el fallo al
+    instante (el proceso detached solo avisa por Telegram)."""
+    import subprocess
+    from pathlib import Path
+    from auditor.allowed_paths import is_path_allowed, allowed_roots_str
+    from core import self_extend as se
+
+    repo = repo or str(Path(__file__).resolve().parent.parent)   # por defecto, el propio Jarvis
+    if not is_path_allowed(repo):
+        return {"error": f"Ruta no permitida: '{repo}'. Repos conocidos: {allowed_roots_str()}"}
+
+    packages = packages or []
+    smoke_args = smoke_args or {}
+
+    prohibidos = [p for p in packages if not se.is_package_allowed(p)]
+    if prohibidos:
+        return {
+            "error": (
+                f"Paquete(s) no permitido(s): {', '.join(prohibidos)}. Hay que anadirlos a "
+                f"config/allowed_packages.json antes de que Jarvis pueda instalarlos."
+            )
+        }
+
+    # commit a poner en produccion = el que dejo edit_code (HEAD por defecto);
+    # base = su padre, a donde volver si el revert se dispara.
+    commit = commit or se.git_head(repo)
+    if not commit:
+        return {"error": f"'{repo}' no parece un repositorio git con commits."}
+    base = subprocess.run(
+        ["git", "-C", repo, "rev-parse", f"{commit}~1"],
+        capture_output=True, text=True,
+    ).stdout.strip()
+    if not base:
+        return {"error": "No pude determinar el commit anterior (base) para un posible revert."}
+
+    plan = se.SelfExtendPlan(
+        base_commit=base, commit=commit, packages=packages,
+        smoke_tool=smoke_tool, smoke_args=smoke_args, label=label, repo=repo,
+    )
+    return se.launch_supervised(plan)
+
+
 FUNCTIONS = {
     "query_tasks": query_tasks,
     "search_memory": search_memory,
@@ -890,6 +994,7 @@ FUNCTIONS = {
     "query_alpha50_history": query_alpha50_history,
     "repaso_entrenos": repaso_entrenos,
     "edit_code": edit_code,
+    "self_extend": self_extend,
     "start_netscan": start_netscan,
 }
 

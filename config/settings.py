@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     # Centro de Mando
     MANDO_API_URL: str = "https://figaro-server.taild7b9e6.ts.net/mando-api"
 
+    # Autoampliacion supervisada (ADR-0002). El bucle reinicia este servicio
+    # (NSSM) para cargar el codigo nuevo y comprueba HEALTH_URL para saber si
+    # Jarvis volvio vivo; si no, revierte el commit.
+    JARVIS_SERVICE_NAME: str = "JarvisAPI"
+    HEALTH_URL: str = "http://127.0.0.1:3000/health"
+
     class Config:
         env_file = ".env"
         extra = "ignore"

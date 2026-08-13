@@ -1,0 +1,12 @@
+{
+  "_comment": "Whitelist de paquetes pip que la autoampliacion (ADR-0002, core/self_extend.py) puede instalar sin aprobacion manual. Mismo espiritu que auditor/allowed_paths.py pero sobre nombres de paquete. Cualquier otro paquete requiere que Juan Pablo lo anada aqui primero.",
+  "allowed": [
+    "pypdf",
+    "pdfplumber",
+    "python-dateutil",
+    "icalendar",
+    "beautifulsoup4",
+    "lxml",
+    "markdownify"
+  ]
+}

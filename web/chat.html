@@ -336,6 +336,14 @@ function renderChips() {
     chipsBox.appendChild(c);
   });
 }
+// Tipos que sí son texto plano: se leen en el navegador (rápido, sin servidor).
+// Cualquier otro (PDF y demás binarios) va al endpoint /extract, que saca el
+// texto de verdad — antes readAsText metía los bytes crudos del PDF en el prompt.
+const TEXT_EXTS = ["txt","md","markdown","csv","tsv","json","yaml","yml","log",
+                   "py","js","ts","html","css","sql","sh","ini","toml","xml"];
+const BIN_MAX = 5 * 1024 * 1024;  // límite para adjuntos binarios (PDF suele ser <150 KB)
+const extOf = (name) => { const i = name.lastIndexOf("."); return i < 0 ? "" : name.slice(i + 1).toLowerCase(); };
+
 function readAsText(file) {
   return new Promise((resolve) => {
     if (file.size > MAX_FILE) { resolve(null); return; }
@@ -344,10 +352,31 @@ function readAsText(file) {
     r.readAsText(file);
   });
 }
+function readAsBase64(file) {
+  return new Promise((resolve) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result || "").split(",", 2)[1] || ""); // quita "data:...;base64,"
+    r.onerror = () => resolve(null);
+    r.readAsDataURL(file);
+  });
+}
+async function extractOnServer(file) {
+  if (file.size > BIN_MAX) { alert("Archivo demasiado grande; se omitió " + file.name); return null; }
+  const b64 = await readAsBase64(file); if (b64 === null) return null;
+  try {
+    const r = await api("/extract", { method: "POST", body: JSON.stringify({ name: file.name, content_b64: b64 }) });
+    const d = await r.json();
+    return d.text || null;
+  } catch (e) {
+    alert("No pude leer '" + file.name + "': " + e.message);
+    return null;
+  }
+}
 async function addFiles(fileList) {
   let total = attachments.reduce((n, a) => n + a.text.length, 0);
   for (const f of fileList) {
-    const txt = await readAsText(f); if (txt === null) continue;
+    const txt = TEXT_EXTS.includes(extOf(f.name)) ? await readAsText(f) : await extractOnServer(f);
+    if (txt === null) continue;
     if (total + txt.length > MAX_TOTAL) { alert("Adjuntos demasiado grandes; se omitió " + f.name); continue; }
     total += txt.length;
     attachments.push({ name: f.webkitRelativePath || f.name, text: txt });

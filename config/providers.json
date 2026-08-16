@@ -75,11 +75,12 @@
         },
         {
           "name": "qwen/qwen3.6-27b",
-          "display_name": "Qwen3.6-27B",
+          "display_name": "Qwen3.6-27B (vision)",
           "roles": [
             "code",
             "reasoning",
-            "tools"
+            "tools",
+            "vision"
           ],
           "priority": 85,
           "context": 131072,
@@ -88,7 +89,7 @@
           "speed": 8,
           "tools": true,
           "stream": false,
-          "vision": false,
+          "vision": true,
           "embeddings": false
         }
       ]
@@ -167,6 +168,22 @@
           "tools": true,
           "stream": false,
           "vision": false,
+          "embeddings": false
+        },
+        {
+          "name": "meta/llama-3.2-11b-vision-instruct",
+          "display_name": "Llama 3.2 11B Vision",
+          "roles": [
+            "vision"
+          ],
+          "priority": 90,
+          "context": 128000,
+          "reasoning": 6,
+          "coding": 5,
+          "speed": 8,
+          "tools": false,
+          "stream": false,
+          "vision": true,
           "embeddings": false
         }
       ]

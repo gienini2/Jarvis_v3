@@ -102,6 +102,11 @@ class AprendeRequest(BaseModel):
     intent: str
 
 
+class ExtractRequest(BaseModel):
+    name: str          # nombre del archivo (da el tipo por su extension)
+    content_b64: str   # bytes del archivo en base64
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -191,6 +196,27 @@ def chat(req: ChatRequest):
         content={"response": response, "intent": intent_type},
         media_type="application/json; charset=utf-8",
     )
+
+
+@app.post("/extract")
+def extract(req: ExtractRequest):
+    """Convierte un adjunto (PDF, texto...) en texto limpio para que la UI lo
+    meta en el mensaje. Sin esto, la web hacia readAsText a los PDF y colaba
+    bytes binarios en el prompt (el LLM respondia describiendo la estructura del
+    PDF en vez de leer su contenido). Requiere X-Jarvis-Key como el resto."""
+    import base64
+    from core.attachments import extract_text, UnsupportedAttachment
+    try:
+        data = base64.b64decode(req.content_b64)
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "base64 invalido"})
+    try:
+        return extract_text(req.name, data)
+    except UnsupportedAttachment as e:
+        return JSONResponse(status_code=415, content={"error": str(e)})
+    except Exception as e:
+        log.warning(f"[extract] fallo con '{req.name}': {e}")
+        return JSONResponse(status_code=500, content={"error": f"no pude extraer el texto: {e}"})
 
 
 @app.post("/chat/agent")

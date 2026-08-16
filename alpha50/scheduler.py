@@ -374,11 +374,17 @@ def alpha50_intent_handler(texto_usuario: str) -> Optional[str]:
         res = procesar_respuesta(texto_usuario, contexto)
         # La opción real la resuelve el decisor (carrera/bici/hiit o power_walking)
         mapa = {"a": "carrera", "b": "bici", "c": "hiit"}
+        opcion = res.get("opcion") or mapa.get(texto_lower)
 
-        _sesion_update(esperando="confirmacion",
-                       opcion_elegida=res.get("opcion") or mapa.get(texto_lower))
+        _sesion_update(esperando="confirmacion", opcion_elegida=opcion)
 
-        return res.get("mensaje_telegram")
+        mensaje = res.get("mensaje_telegram")
+        # Enganche Garmin: si eliges carrera, subo el workout del día a tu reloj.
+        if opcion == "carrera":
+            extra = _push_carrera_garmin(contexto)
+            if extra:
+                mensaje = (mensaje or "") + "\n\n" + extra
+        return mensaje
 
     # ── Esperando confirmación (hecho/parcial/no pude) ────────────────────────
     if esperando in ("confirmacion", "confirmacion_descanso"):
@@ -398,6 +404,27 @@ def alpha50_intent_handler(texto_usuario: str) -> Optional[str]:
 
     # No es un mensaje Alpha50 (los comandos se resuelven al principio)
     return None
+
+
+def _push_carrera_garmin(contexto: dict) -> str:
+    """Al elegir carrera: construye el workout del día y lo sube+agenda en Garmin
+    (reloj + agenda). Nunca rompe el flujo: ante fallo, devuelve un aviso suave."""
+    try:
+        from datetime import date
+        entreno = (contexto or {}).get("entreno", {}) or {}
+        op = (entreno.get("opciones", {}) or {}).get("carrera")
+        if not op:
+            return ""
+        semana = contexto.get("semana", "")
+        quitar = (contexto.get("ajuste") or {}).get("series_cardio_quitar", 0)
+        from connectors.garmin_workouts import crear_y_agendar
+        r = crear_y_agendar(op, f"Alpha50 S{semana} · Carrera", date.today().isoformat(),
+                            series_quitar=quitar)
+        if r.get("ok"):
+            return "📲 Entreno subido a tu Garmin y agendado para hoy — lo tienes en el reloj."
+        return f"⚠️ No pude subirlo a Garmin ({str(r.get('error',''))[:80]}). El plan sigue en pie."
+    except Exception as e:
+        return f"⚠️ No pude subirlo a Garmin: {e}"
 
 
 def _ejecutar_decisor_async(metricas):

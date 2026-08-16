@@ -36,6 +36,10 @@ AGENT_SYSTEM_PROMPT = (
     "los dias hechos, y repaso_entrenos para las metricas reales de Garmin (km, FC, VO2max, "
     "fuerza). El plan manda; registra lo que hace de verdad y echale la bronca si no cumple, "
     "pero siempre con datos, sin inventar.\n"
+    "ADJUNTOS: los archivos te llegan YA convertidos a texto, entre '[Archivo adjunto: nombre]' "
+    "y '[Fin del archivo]'. Si es una imagen, ese texto es una DESCRIPCION hecha por un modelo de "
+    "vision: usala como si hubieras visto la imagen y responde a partir de ella. NUNCA digas que "
+    "no puedes ver ni analizar imagenes -- si hay descripcion, si puedes.\n"
     "Responde en castellano, directo y sin relleno; algun emoji esta bien."
 )
 

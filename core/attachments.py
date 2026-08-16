@@ -70,5 +70,19 @@ _TEXT_EXTS = (
     "py", "js", "ts", "html", "css", "sql", "sh", "ini", "toml", "xml",
 )
 
+def _from_image(data: bytes) -> str:
+    """Imagen -> descripcion en texto via un modelo de vision (core.vision, que
+    va por el router). Asi el LLM del chat 've' la imagen a traves de su texto."""
+    from core.vision import describe
+    try:
+        return describe(data)
+    except Exception as e:
+        raise UnsupportedAttachment(f"no pude analizar la imagen con un modelo de vision: {e}")
+
+
+_IMAGE_EXTS = ("png", "jpg", "jpeg", "webp", "gif", "bmp")
+
 _EXTRACTORS = {ext: _from_text for ext in _TEXT_EXTS}
 _EXTRACTORS["pdf"] = _from_pdf
+for _img_ext in _IMAGE_EXTS:
+    _EXTRACTORS[_img_ext] = _from_image

@@ -39,6 +39,12 @@ def _requirements_from_request(request: LLMRequest) -> dict:
         requirements["role"] = "tools"
         requirements.update(role_defaults.get("tools", {}))
     requirements.update(explicit)
+    if getattr(request, "images", None):
+        # Con imagen adjunta forzamos un modelo con vision (rol 'vision') y sin
+        # tools: manda el contenido visual por encima del rol que tocara por intent.
+        requirements["role"] = "vision"
+        requirements["vision"] = True
+        requirements["tools"] = False
     return requirements
 
 

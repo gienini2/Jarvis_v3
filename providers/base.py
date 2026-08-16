@@ -29,3 +29,15 @@ def raise_with_body(response: requests.Response):
             f"{response.status_code} {response.reason} -- body: {response.text[:1000]}",
             response=response,
         )
+
+
+def openai_content(text: str, request):
+    """Contenido para APIs OpenAI-compatibles (Groq, NVIDIA). Si el request trae
+    imagenes, devuelve el array multimodal [texto + image_url...]; si no, el texto."""
+    images = getattr(request, "images", None)
+    if not images:
+        return text
+    blocks = [{"type": "text", "text": text}]
+    for img in images:
+        blocks.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}})
+    return blocks

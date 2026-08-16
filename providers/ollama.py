@@ -17,19 +17,23 @@ class OllamaProvider(BaseProvider):
         from core.llm import build_prompt
 
         started = time.monotonic()
+        images = getattr(request, "images", None)
+        payload = {
+            "model": request.model,
+            "prompt": request.prompt if images else build_prompt(request.prompt, request.rag),
+            "stream": False,
+            "options": {
+                "num_gpu": 99,
+                "num_ctx": settings.OLLAMA_NUM_CTX,
+                "temperature": settings.LLM_TEMPERATURE,
+            },
+        }
+        if images:
+            payload["images"] = images  # gemma3 lee la imagen desde base64
         try:
             response = requests.post(
                 settings.OLLAMA_URL,
-                json={
-                    "model": request.model,
-                    "prompt": build_prompt(request.prompt, request.rag),
-                    "stream": False,
-                    "options": {
-                        "num_gpu": 99,
-                        "num_ctx": settings.OLLAMA_NUM_CTX,
-                        "temperature": settings.LLM_TEMPERATURE,
-                    },
-                },
+                json=payload,
                 timeout=settings.TIMEOUT,
             )
             raise_with_body(response)

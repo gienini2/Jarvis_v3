@@ -4,7 +4,7 @@ import requests
 
 from config.settings import settings
 from core.llm_types import ProviderResult
-from providers.base import BaseProvider, raise_with_body
+from providers.base import BaseProvider, raise_with_body, openai_content
 
 
 class GroqProvider(BaseProvider):
@@ -15,17 +15,21 @@ class GroqProvider(BaseProvider):
         from core.llm import build_prompt
 
         started = time.monotonic()
+        images = getattr(request, "images", None)
+        # Con imagen: el prompt del usuario tal cual (sin el system-prompt de Jarvis)
+        # y lectura mas larga (la vision tarda mas que el texto).
+        prompt_text = request.prompt if images else build_prompt(request.prompt, request.rag)
         try:
             response = requests.post(
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers=self._headers(),
                 json={
                     "model": request.model,
-                    "messages": [{"role": "user", "content": build_prompt(request.prompt, request.rag)}],
+                    "messages": [{"role": "user", "content": openai_content(prompt_text, request)}],
                     "temperature": settings.LLM_TEMPERATURE,
                     "max_tokens": settings.LLM_MAX_TOKENS,
                 },
-                timeout=(3.05, 15),
+                timeout=(3.05, 90 if images else 15),
             )
             raise_with_body(response)
             text = response.json()["choices"][0]["message"]["content"]

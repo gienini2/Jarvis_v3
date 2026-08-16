@@ -9,6 +9,7 @@ class LLMRequest:
     rag: object = None
     model: str = ""
     requirements: object = None
+    images: object = None  # lista de imagenes en base64 -> fuerza modelo con vision
 
 
 @dataclass

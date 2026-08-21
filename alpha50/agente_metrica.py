@@ -236,8 +236,12 @@ def descargar_garmin(para_fecha: date = None) -> dict:
         # Body Battery "al despertar" = PICO del día. Preferimos el máximo diario
         # que reporta Garmin (no depende de la hora de consulta); si no está,
         # usamos el máximo del array de valores. (Antes cogía las 00:00 → ≈9 mal.)
+        # Solo valores "de la mañana": al despertar o pico del día. NO usamos
+        # bodyBatteryMostRecentValue: es el valor ACTUAL, y si Garmin aún no ha
+        # sincronizado la noche, ese "más reciente" es el residuo de ayer con la
+        # batería gastada (bug 21/08: BB=17 en vez de 78). Mejor None -> se pide.
         bb = None
-        for k in ("bodyBatteryAtWakeTime", "bodyBatteryHighestValue", "bodyBatteryMostRecentValue"):
+        for k in ("bodyBatteryAtWakeTime", "bodyBatteryHighestValue"):
             if stats.get(k) is not None:
                 bb = stats.get(k)
                 break
@@ -300,6 +304,12 @@ def descargar_garmin(para_fecha: date = None) -> dict:
                 metricas["spo2_nocturno"] = avg
         except Exception:
             pass
+
+        # Si la noche no ha sincronizado aún (sin puntuación de sueño), el Body
+        # Battery "al despertar" tampoco es fiable -> lo marcamos ausente para
+        # que el flujo lo PREGUNTE, en vez de arrastrar un valor viejo de anoche.
+        if metricas.get("sueno_score") is None:
+            metricas["body_battery"] = None
 
         # Devolvemos lo que haya (aunque sea parcial). Quien llame decidirá qué
         # métricas faltan y se las pedirá al usuario, sin inventar neutros.

@@ -8,8 +8,11 @@ class Settings(BaseSettings):
     MODEL: str = "qwen2.5:7b"
     TIMEOUT: int = 120
     NVIDIA_API_KEY: str = ""
+    # Legacy: la seleccion real de modelo NVIDIA vive en config/providers.json
+    # (el router). Estos campos ya no los lee el codigo; se mantienen validos
+    # para no dejar un ID muerto a la vista. Fuente de verdad: providers.json.
     NVIDIA_MODEL_GENERAL: str = "meta/llama-3.3-70b-instruct"
-    NVIDIA_MODEL_CODE: str = "deepseek-ai/deepseek-v4-pro"
+    NVIDIA_MODEL_CODE: str = "openai/gpt-oss-120b"
     FIGARO_SSH_KEY: str = ""
     FIGARO_HOST: str = "100.78.43.76"
 

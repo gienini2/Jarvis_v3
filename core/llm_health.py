@@ -12,6 +12,12 @@ class HealthState:
     last_success: float = 0.0
     last_failure: float = 0.0
     failures: int = 0
+    # Señal blanda de disponibilidad para el scoring del router: sube con cualquier
+    # problema (429 rate-limit, 5xx, timeout) y DECAE con cada respuesta buena.
+    # No es un filtro (online sigue siendo el filtro duro); solo pondera: un
+    # proveedor potente pero que raciona (429) baja para que otro mas disponible
+    # lo adelante, y se recupera solo segun vuelve a responder bien.
+    recent_penalty: float = 0.0
 
 
 class HealthManager:
@@ -47,6 +53,7 @@ class HealthManager:
             state.latency = latency
             state.last_success = time.time()
             state.failures = 0  # una respuesta buena limpia la racha de fallos
+            state.recent_penalty *= 0.5  # y hace decaer la penalizacion de disponibilidad
 
     def record_failure(self, provider_name: str):
         with self._lock:
@@ -54,6 +61,13 @@ class HealthManager:
             state.online = False
             state.last_failure = time.time()
             state.failures += 1
+
+    def record_issue(self, provider_name: str, cap: float = 5.0):
+        """Problema puntual que NO tumba al proveedor (429, 5xx, timeout suelto):
+        solo sube la penalizacion blanda de disponibilidad para el scoring."""
+        with self._lock:
+            state = self._states.setdefault(provider_name, HealthState())
+            state.recent_penalty = min(cap, state.recent_penalty + 1.0)
 
     def refresh_provider(self, provider_name: str):
         provider = PROVIDERS[provider_name]

@@ -33,6 +33,14 @@
     "ollama": "qwen-local",
     "kimi": "kimi"
   },
+  "scoring": {
+    "_comment": "Ponderacion potencia + disponibilidad del router. score = prioridad_proveedor + prioridad_modelo + capacidad(rol) + ajuste_disponibilidad. La disponibilidad la mide HealthManager en vivo (latencia + racha de 429/errores que decae con exitos).",
+    "failure_penalty": 6.0,
+    "failure_cap": 5,
+    "latency_penalty": 1.5,
+    "latency_cap": 8.0,
+    "healthy_bonus": 4.0
+  },
   "providers": {
     "groq": {
       "priority": 100,
@@ -116,18 +124,35 @@
           "embeddings": false
         },
         {
-          "name": "deepseek-ai/deepseek-v4-pro",
-          "display_name": "DeepSeek V4 Pro",
+          "name": "openai/gpt-oss-120b",
+          "display_name": "GPT-OSS-120B (NVIDIA)",
           "roles": [
-            "code",
+            "general",
             "reasoning",
-            "long_context",
             "tools"
           ],
-          "priority": 95,
-          "context": 1000000,
+          "priority": 92,
+          "context": 131072,
           "reasoning": 9,
-          "coding": 10,
+          "coding": 8,
+          "speed": 7,
+          "tools": true,
+          "stream": false,
+          "vision": false,
+          "embeddings": false
+        },
+        {
+          "name": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+          "display_name": "Nemotron Super 49B",
+          "roles": [
+            "general",
+            "reasoning",
+            "tools"
+          ],
+          "priority": 88,
+          "context": 131072,
+          "reasoning": 9,
+          "coding": 8,
           "speed": 6,
           "tools": true,
           "stream": false,
@@ -135,36 +160,17 @@
           "embeddings": false
         },
         {
-          "name": "qwen/qwen3-235b-a22b",
-          "display_name": "Qwen3-235B-A22B",
+          "name": "openai/gpt-oss-20b",
+          "display_name": "GPT-OSS-20B (NVIDIA)",
           "roles": [
             "general",
-            "code",
-            "reasoning"
-          ],
-          "priority": 88,
-          "context": 131072,
-          "reasoning": 9,
-          "coding": 8,
-          "speed": 6,
-          "tools": false,
-          "stream": false,
-          "vision": false,
-          "embeddings": false
-        },
-        {
-          "name": "nvidia/llama-3.1-nemotron-ultra-253b-v1",
-          "display_name": "Nemotron Ultra",
-          "roles": [
-            "reasoning",
-            "long_context",
             "tools"
           ],
-          "priority": 86,
+          "priority": 80,
           "context": 131072,
-          "reasoning": 10,
-          "coding": 8,
-          "speed": 5,
+          "reasoning": 7,
+          "coding": 6,
+          "speed": 8,
           "tools": true,
           "stream": false,
           "vision": false,
@@ -211,34 +217,15 @@
           "embeddings": false
         },
         {
-          "name": "deepseek-r1:8b",
-          "display_name": "DeepSeek-R1",
+          "name": "qwen2.5-coder:7b-instruct-q4_K_M",
+          "display_name": "Qwen2.5 Coder 7B",
           "roles": [
-            "reasoning",
-            "code",
-            "tools"
+            "code"
           ],
-          "priority": 75,
-          "context": 128000,
-          "reasoning": 8,
-          "coding": 7,
-          "speed": 5,
-          "tools": true,
-          "stream": true,
-          "vision": false,
-          "embeddings": false
-        },
-        {
-          "name": "phi4",
-          "display_name": "Phi-4",
-          "roles": [
-            "general",
-            "reasoning"
-          ],
-          "priority": 60,
-          "context": 16000,
-          "reasoning": 7,
-          "coding": 6,
+          "priority": 82,
+          "context": 32768,
+          "reasoning": 6,
+          "coding": 8,
           "speed": 6,
           "tools": false,
           "stream": true,
@@ -246,13 +233,29 @@
           "embeddings": false
         },
         {
-          "name": "gemma3",
-          "display_name": "Gemma 3",
+          "name": "deepseek-r1:7b",
+          "display_name": "DeepSeek-R1 7B",
+          "roles": [
+            "reasoning"
+          ],
+          "priority": 72,
+          "context": 131072,
+          "reasoning": 8,
+          "coding": 7,
+          "speed": 5,
+          "tools": false,
+          "stream": true,
+          "vision": false,
+          "embeddings": false
+        },
+        {
+          "name": "gemma3:latest",
+          "display_name": "Gemma 3 (vision local)",
           "roles": [
             "general",
             "vision"
           ],
-          "priority": 55,
+          "priority": 60,
           "context": 128000,
           "reasoning": 7,
           "coding": 6,

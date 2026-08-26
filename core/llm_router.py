@@ -25,6 +25,33 @@ _PROVIDERS_CONFIG = _CONFIG["providers"]
 _SELECTION = _CONFIG.get("selection", {})
 _BACKEND_LABELS = _CONFIG.get("backend_labels", {})
 
+# Ponderacion potencia + DISPONIBILIDAD. La potencia (prioridad + capacidad) elige
+# el mejor modelo; la disponibilidad ajusta: un proveedor potente pero lento o con
+# fallos recientes baja, para que uno mas fiable lo adelante. Tunable desde
+# providers.json -> "scoring" sin tocar codigo.
+_SCORING = {
+    "failure_penalty": 6.0,   # puntos por fallo en la racha actual
+    "failure_cap": 5,         # tope de fallos que cuentan
+    "latency_penalty": 1.5,   # puntos por segundo de latencia
+    "latency_cap": 8.0,       # tope de latencia en segundos
+    "healthy_bonus": 4.0,     # premio si el proveedor esta online y sin fallos
+    **_CONFIG.get("scoring", {}),
+}
+
+
+def _availability_adjustment(provider_name: str) -> float:
+    """Ajuste por disponibilidad real medida por HealthManager (latencia + racha
+    de fallos + online). Negativo cuando el proveedor esta degradado."""
+    state = health_manager.get(provider_name)
+    adjustment = 0.0
+    if state.recent_penalty:
+        adjustment -= min(state.recent_penalty, _SCORING["failure_cap"]) * _SCORING["failure_penalty"]
+    if state.latency:
+        adjustment -= min(state.latency, _SCORING["latency_cap"]) * _SCORING["latency_penalty"]
+    if state.online and not state.recent_penalty:
+        adjustment += _SCORING["healthy_bonus"]
+    return adjustment
+
 
 def _requirements_from_request(request: LLMRequest) -> dict:
     defaults = dict(_SELECTION.get("defaults", {}))
@@ -57,9 +84,9 @@ def _is_connectivity_failure(exception: Exception | None) -> bool:
     return isinstance(exception, (requests.Timeout, requests.ConnectionError))
 
 
-def _score(provider_config: dict, model_config: dict, requirements: dict) -> int:
+def _power_score(provider_config: dict, model_config: dict, requirements: dict) -> int:
+    """Solo potencia: prioridad de proveedor + prioridad de modelo + capacidad."""
     role = requirements.get("role", "general")
-    capability_bonus = 0
     if role == "code":
         capability_bonus = model_config.get("coding", 0)
     elif role == "reasoning":
@@ -67,6 +94,12 @@ def _score(provider_config: dict, model_config: dict, requirements: dict) -> int
     else:
         capability_bonus = model_config.get("speed", 0)
     return provider_config.get("priority", 0) + model_config.get("priority", 0) + capability_bonus
+
+
+def _score(provider_name: str, provider_config: dict, model_config: dict, requirements: dict) -> float:
+    """Potencia + disponibilidad. La cascada sigue siendo 'el mas potente primero',
+    pero un proveedor degradado (lento o fallando) cede el puesto al siguiente."""
+    return _power_score(provider_config, model_config, requirements) + _availability_adjustment(provider_name)
 
 
 def _discard_reason(provider_name: str, provider_config: dict, model_config: dict, requirements: dict, ignore_health: bool = False) -> str:
@@ -110,7 +143,7 @@ def find_models(requirements: dict, ignore_health: bool = False) -> list[dict]:
             "provider": provider_name,
             "model": model_config["name"],
             "display_name": model_config.get("display_name", model_config["name"]),
-            "score": _score(provider_config, model_config, requirements),
+            "score": _score(provider_name, provider_config, model_config, requirements),
             "provider_config": provider_config,
             "model_config": model_config,
         })
@@ -144,6 +177,9 @@ def _call_candidates(request: LLMRequest, use_tools: bool):
             health_manager.record_success(provider_name, result.latency)
             set_backend(_backend_label(provider_name))
             return result
+        # Cualquier fallo (429 rate-limit, 5xx, timeout) resta disponibilidad en el
+        # scoring; una caida de red ademas tumba al proveedor (filtro duro).
+        health_manager.record_issue(provider_name)
         if _is_connectivity_failure(result.exception):
             health_manager.record_failure(provider_name)
             failed_providers.add(provider_name)
@@ -188,7 +224,9 @@ def debug(request: LLMRequest | dict) -> str:
         item = {
             "provider": provider_name,
             "model": model_config.get("display_name", model_config.get("name")),
-            "score": _score(provider_config, model_config, requirements),
+            "power": _power_score(provider_config, model_config, requirements),
+            "availability": _availability_adjustment(provider_name),
+            "score": _score(provider_name, provider_config, model_config, requirements),
             "reason": reason,
         }
         if reason:
@@ -199,7 +237,7 @@ def debug(request: LLMRequest | dict) -> str:
     for item in sorted(accepted, key=lambda data: data["score"], reverse=True):
         lines.append("")
         lines.append(f"OK {item['provider']} / {item['model']}")
-        lines.append(f"score: {item['score']}")
+        lines.append(f"score: {item['score']:.1f} (potencia {item['power']} + disponibilidad {item['availability']:+.1f})")
 
     for item in rejected:
         lines.append("")

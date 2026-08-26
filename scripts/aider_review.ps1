@@ -28,11 +28,19 @@ if (-not (Test-Path $venv)) {
 
 $message = "Revisa este codigo como arquitecto senior. Identifica: bugs, problemas de seguridad, codigo muerto, mejoras de rendimiento y deuda tecnica. Se directo y especifico con numero de linea."
 
+# Modelo NO hardcodeado: se lee de config/providers.json (la misma fuente de verdad
+# que usa el router de Jarvis). Asi, cuando Groq retira un modelo y se actualiza el
+# JSON, este script lo sigue automaticamente y no vuelve a apuntar a uno muerto.
+$providers = Join-Path $PSScriptRoot "..\config\providers.json"
+$groqModel = & $venv -c "import json,sys; d=json.load(open(sys.argv[1],encoding='utf-8')); print(next(m['name'] for m in d['providers']['groq']['models'] if 'general' in m.get('roles',[])))" $providers 2>$null
+if (-not $groqModel) { $groqModel = "openai/gpt-oss-120b" }   # fallback defensivo
+$model = "groq/$groqModel"
+
 Write-Host "Auditando: $Target" -ForegroundColor Cyan
-Write-Host "Modelo: groq/llama-3.3-70b-versatile" -ForegroundColor DarkGray
+Write-Host "Modelo: $model" -ForegroundColor DarkGray
 
 & $venv -m aider `
-    --model groq/llama-3.3-70b-versatile `
+    --model $model `
     --no-git `
     --yes `
     --message $message `

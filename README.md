@@ -1,36 +1,36 @@
 # Jarvis — Personal AI Assistant
 
-A self-hosted AI assistant running entirely on local hardware. No cloud LLM. Conversations via Telegram, brain on a Windows PC with an NVIDIA GPU.
+A self-hosted, local-first AI assistant. The brain runs on a Windows PC with an
+NVIDIA GPU; conversations arrive via a Telegram relay, a local chat, or an
+OpenAI-compatible API. Model selection is a config-driven cascade across cloud
+and local providers, with a local model as the offline fallback.
+
+> Detailed, always-current architecture lives in [`CLAUDE.md`](CLAUDE.md).
 
 ## What it does
 
-- Answers questions and holds conversations with persistent memory
-- Classifies intent without calling the LLM (regex router for task commands)
+- Answers questions and holds conversations with persistent memory (PostgreSQL + pgvector)
+- Decides actions with a tool-calling agent (falls back to an ML/regex intent classifier)
 - Injects only relevant context into each prompt — not a full memory dump
 - Manages tasks across multiple active projects, synced from a personal dashboard
-- Runs `qwen2.5:7b` locally via Ollama; falls back to Claude Haiku if Ollama is unavailable
+- Routes each request through a provider cascade: **Groq → NVIDIA NIM → Ollama (`qwen2.5:7b`, local/offline)**
 
 ## Architecture
 
 ```
-Telegram (Hetzner VPS)
-        │
-        │  POST /chat  (Tailscale tunnel)
+Telegram relay (Figaro server) ─┐
+Local chat (chat.py) ───────────┤  POST /chat  (Tailscale tunnel / localhost)
+OpenAI-compatible API (/v1) ────┘
         ▼
 FastAPI  :3000  (Windows PC)
         │
-        ├── Intent classifier  (regex, no LLM)
-        │         ├── complete_task → DB update + dashboard sync
-        │         ├── query_task   → task lookup
-        │         └── general      → LLM
+        ├── Tool-calling agent  (core/agent.py + core/tools.py)  ← primary
+        │         └── fallback: ML/regex intent classifier (core/intent*.py)
         │
-        ├── Active memory builder
-        │         ├── consolidated summary (PostgreSQL)
-        │         ├── relevant tasks (keyword/project match)
-        │         └── recent conversation turns
+        ├── Active memory + RAG  (core/rag.py, pgvector, nomic-embed-text)
         │
-        └── Ollama  (qwen2.5:7b, CUDA, all layers on GPU)
-                   └── fallback: Anthropic claude-haiku
+        └── LLM router  (core/llm_router.py, config/providers.json)
+                   Groq (gpt-oss-120b) → NVIDIA NIM → Ollama (qwen2.5:7b, offline)
 ```
 
 ## Tech stack
@@ -38,11 +38,12 @@ FastAPI  :3000  (Windows PC)
 | Layer | Choice |
 |---|---|
 | API | FastAPI (async) |
-| LLM inference | Ollama — qwen2.5:7b (local) |
-| GPU | NVIDIA RTX 5050, CUDA 12.0 (Blackwell) |
-| Memory & tasks | PostgreSQL 16 |
-| Conversation relay | python-telegram-bot on Hetzner VPS |
-| Networking | Tailscale (VPS → PC tunnel) |
+| LLM inference | Cascade: Groq (cloud) → NVIDIA NIM (cloud) → Ollama `qwen2.5:7b` (local) |
+| Model selection | `config/providers.json` + `core/llm_router.py` (role/health scoring) |
+| GPU | NVIDIA RTX 5050, CUDA (Blackwell) — runs Ollama + embeddings |
+| Memory & RAG | PostgreSQL + pgvector, `nomic-embed-text` embeddings |
+| Conversation relay | python-telegram-bot on the Figaro server (systemd) |
+| Networking | Tailscale (relay → PC tunnel) |
 | Config | Pydantic BaseSettings + `.env` |
 
 ## Project structure
@@ -72,11 +73,11 @@ scripts/
 
 ## Design decisions
 
-**Intent classification before the LLM.** Task commands (`mark X as done`, `show tasks for Y`) are caught by a regex classifier and resolved directly against the database. This avoids an unnecessary LLM call for deterministic operations and keeps latency under 100ms for task queries.
+**Tool-calling agent as the primary path.** A tool-calling agent (`core/agent.py` + `core/tools.py`) decides what to do — query tasks, send email, edit code, etc. An ML/regex intent classifier (`core/intent*.py`) remains as a deterministic fallback for when the agent's providers are all down. (Earlier versions ran the classifier as the main path; it is now the safety net.)
 
 **Selective context injection.** Rather than dumping all memory into the prompt, `active_memory.py` extracts keywords from the user message and fetches only matching tasks and a single consolidated summary. The prompt stays under 4K tokens while still being context-aware.
 
-**Local-first.** The LLM runs entirely on the local GPU — no data leaves the machine. The Telegram relay is the only external component and it only forwards text; it never touches the LLM.
+**Local-first, not local-only.** The router prefers cloud providers (Groq, NVIDIA) for speed and capability, but always keeps a local Ollama model as the offline fallback so the assistant still answers with no internet. The Telegram relay only forwards text; it never runs the LLM.
 
 **Flat database schema.** Tasks, conversations, summaries, and intent logs each have their own table. No ORM — direct psycopg2 for simplicity and control.
 

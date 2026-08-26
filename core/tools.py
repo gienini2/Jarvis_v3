@@ -866,8 +866,10 @@ def edit_code(path: str, instruction: str) -> dict:
         result = subprocess.run(
             [
                 sys.executable, "-m", "aider",
-                "--model", "groq/openai/gpt-oss-120b",
-                "--editor-model", "groq/qwen/qwen3.6-27b",
+                # Modelos desde settings (.env / defaults), no hardcodeados: si Groq
+                # retira uno, se cambia en un solo sitio y edit_code lo sigue.
+                "--model", f"groq/{settings.GROQ_MODEL_GENERAL}",
+                "--editor-model", f"groq/{settings.GROQ_MODEL_CODE}",
                 # Sin interfaz interactiva: Jarvis corre aider como servicio (sin
                 # consola) y prompt_toolkit reventaba ("expecting a Windows console").
                 "--no-pretty",

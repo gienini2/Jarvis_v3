@@ -82,8 +82,8 @@
           "embeddings": false
         },
         {
-          "name": "qwen/qwen3.6-27b",
-          "display_name": "Qwen3.6-27B (vision)",
+          "name": "qwen/qwen3.8-27b",
+          "display_name": "Qwen3.8-27B (vision)",
           "roles": [
             "code",
             "reasoning",

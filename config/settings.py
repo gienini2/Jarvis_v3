@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     GROQ_API_KEY: str = ""
     GROQ_MODEL_GENERAL: str = "openai/gpt-oss-120b"
-    GROQ_MODEL_CODE: str = "qwen/qwen3.6-27b"
+    GROQ_MODEL_CODE: str = "qwen/qwen3.8-27b"
 
     # Kimi / Moonshot (API compatible con OpenAI). Fallback de contexto grande.
     KIMI_API_KEY: str = ""

@@ -30,7 +30,7 @@ NO es "Ollama local con fallback a Anthropic". La selección de modelo es
   Kimi/Moonshot (92) está implementado pero `enabled: false`.
 - **Groq** = backend principal (cloud, rápido por LPU). Modelos vivos:
   `openai/gpt-oss-120b` (general/tools/reasoning), `openai/gpt-oss-20b`,
-  `qwen/qwen3.6-27b` (code/visión).
+  `qwen/qwen3.8-27b` (code/visión; sustituye a qwen3.6-27b, retirado el 14/09/2026).
 - **NVIDIA NIM** = fallback cloud. Modelos vivos y validados (con tool-calling):
   `meta/llama-3.3-70b-instruct`, `openai/gpt-oss-120b`,
   `nvidia/llama-3.3-nemotron-super-49b-v1.5`, `openai/gpt-oss-20b`,

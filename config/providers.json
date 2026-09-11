@@ -264,6 +264,23 @@
           "stream": true,
           "vision": true,
           "embeddings": false
+        },
+        {
+          "name": "dolphin3:8b",
+          "display_name": "Dolphin 3.0 8B (uncensored)",
+          "roles": [
+            "general",
+            "tools"
+          ],
+          "priority": 85,
+          "context": 32768,
+          "reasoning": 6,
+          "coding": 7,
+          "speed": 6,
+          "tools": true,
+          "stream": true,
+          "vision": false,
+          "embeddings": false
         }
       ]
     },

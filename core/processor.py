@@ -68,6 +68,28 @@ def process(message: str) -> tuple[str, str]:
         ).start()
         return _tag(alpha50_resp), "alpha50"
 
+    # Modo codigo explicito: peticiones de "hazme un programa/script/funcion..."
+    # (o prefijo /code) se enrutan por rol "code" SIN tools, para que use el modelo
+    # especializado en codigo de la cascada (offline: qwen2.5-coder; online: Groq).
+    # El agente de tool-calling fuerza rol "tools" y nunca elegia el modelo de codigo.
+    try:
+        from core.code_mode import code_intent_handler
+        code_resp = code_intent_handler(message)
+    except Exception as e:
+        log.warning(f"[code_mode] handler fallo: {e}")
+        code_resp = None
+    if code_resp:
+        log.debug("intent=code")
+        _log_intent_safely(message, "code", None, executed=True)
+        _save_message_safely("assistant", code_resp)
+        threading.Thread(
+            target=store_memory,
+            args=(f"user: {message}\nassistant: {code_resp}",),
+            kwargs={"source": "conversation"},
+            daemon=True,
+        ).start()
+        return _tag(code_resp), "code"
+
     # ------------------------------------------------------------------
     # Camino PRINCIPAL (05/07/2026): tool-calling agent (core/agent.py).
     # Decision explicita de Juan Pablo -- el agente pasa a ser el camino por

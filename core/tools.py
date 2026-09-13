@@ -24,6 +24,8 @@ from connectors.google_tools import (
     search_drive_files,
     send_email as _send_email,
     create_event as _create_event,
+    find_events as _find_events,
+    delete_event as _delete_event,
 )
 from connectors.mando_tasks import (
     add_task as _mando_add_task,
@@ -304,7 +306,7 @@ TOOLS = [
         "function": {
             "name": "create_calendar_event",
             "description": (
-                "Crea un evento nuevo en Google Calendar (calendario primary). Usar cuando "
+                "Crea un evento nuevo en el Google Calendar de Juanpa. Usar cuando "
                 "el usuario pida crear/agendar/apuntar un evento o cita."
             ),
             "parameters": {
@@ -322,6 +324,42 @@ TOOLS = [
                     "description": {"type": "string", "description": "Descripcion opcional. Vacio si no aplica."},
                 },
                 "required": ["summary", "start"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_calendar_events",
+            "description": (
+                "Busca eventos en el Google Calendar de Juanpa por texto (titulo, "
+                "descripcion o ubicacion) y devuelve su id. Usar como paso previo para "
+                "borrar o identificar un evento concreto. Solo lectura."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Texto a buscar, ej. 'reunion con Luis'"},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_calendar_event",
+            "description": (
+                "Borra un evento del Google Calendar de Juanpa dado su event_id. "
+                "Obtener el event_id antes con find_calendar_events. Accion irreversible: "
+                "usar solo cuando el usuario pida explicitamente eliminar/borrar un evento."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "event_id": {"type": "string", "description": "ID del evento a borrar (de find_calendar_events)"},
+                },
+                "required": ["event_id"],
             },
         },
     },
@@ -765,6 +803,28 @@ def create_calendar_event(summary: str, start: str, end: str = "", description: 
     return {"ok": True, "summary": summary, "start": start, "end": end}
 
 
+def find_calendar_events(query: str) -> dict:
+    if not query:
+        return {"error": "Falta el texto de busqueda."}
+    try:
+        events = _find_events(query)
+    except Exception as e:
+        return {"error": f"No pude buscar eventos: {e}"}
+    if not events:
+        return {"ok": True, "events": [], "msg": f"No hay eventos que coincidan con '{query}'."}
+    return {"ok": True, "events": events}
+
+
+def delete_calendar_event(event_id: str) -> dict:
+    if not event_id:
+        return {"error": "Falta el event_id del evento a borrar."}
+    try:
+        _delete_event(event_id)
+    except Exception as e:
+        return {"error": f"Google Calendar rechazo el borrado: {e}"}
+    return {"ok": True, "deleted": event_id}
+
+
 def query_alpha50_history(fecha: str = "", dias: int = 14) -> dict:
     from alpha50.history_reader import get_historial
     return get_historial(fecha=fecha, dias=dias)
@@ -993,6 +1053,8 @@ FUNCTIONS = {
     "send_telegram_message": send_telegram_message,
     "send_email": send_email,
     "create_calendar_event": create_calendar_event,
+    "find_calendar_events": find_calendar_events,
+    "delete_calendar_event": delete_calendar_event,
     "query_alpha50_history": query_alpha50_history,
     "repaso_entrenos": repaso_entrenos,
     "edit_code": edit_code,

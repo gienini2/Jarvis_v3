@@ -114,15 +114,49 @@ def get_upcoming_events(max_results: int = 10) -> list[dict]:
     return all_events[:max_results]
 
 
-def create_event(summary: str, start: str, end: str, description: str = "") -> bool:
+def create_event(summary: str, start: str, end: str, description: str = "",
+                 calendar_id: str = "") -> bool:
     service = get_google_service("calendar", "v3")
+    calendar_id = calendar_id or settings.GOOGLE_DEFAULT_CALENDAR_ID
     event = {
         "summary": summary,
         "description": description,
         "start": {"dateTime": start, "timeZone": "Europe/Madrid"},
         "end": {"dateTime": end, "timeZone": "Europe/Madrid"},
     }
-    service.events().insert(calendarId="primary", body=event).execute()
+    service.events().insert(calendarId=calendar_id, body=event).execute()
+    return True
+
+
+def find_events(query: str, max_results: int = 10, calendar_id: str = "") -> list[dict]:
+    """Busca eventos por texto (titulo/descripcion/ubicacion) para poder borrarlos.
+    Devuelve id + datos basicos. Solo lectura."""
+    service = get_google_service("calendar", "v3")
+    calendar_id = calendar_id or settings.GOOGLE_DEFAULT_CALENDAR_ID
+    now = datetime.now(timezone.utc).isoformat()
+    events_result = service.events().list(
+        calendarId=calendar_id,
+        q=query,
+        timeMin=now,
+        maxResults=max_results,
+        singleEvents=True,
+        orderBy="startTime",
+    ).execute()
+    out = []
+    for e in events_result.get("items", []):
+        out.append({
+            "id": e["id"],
+            "summary": e.get("summary", "Sin titulo"),
+            "start": e["start"].get("dateTime", e["start"].get("date")),
+            "end": e["end"].get("dateTime", e["end"].get("date")),
+        })
+    return out
+
+
+def delete_event(event_id: str, calendar_id: str = "") -> bool:
+    service = get_google_service("calendar", "v3")
+    calendar_id = calendar_id or settings.GOOGLE_DEFAULT_CALENDAR_ID
+    service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
     return True
 
 

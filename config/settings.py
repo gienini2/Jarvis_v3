@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     # Google
     GOOGLE_CREDENTIALS_FILE: str = "config/google_credentials.json"
     GOOGLE_TOKEN_FILE: str = "config/google_token.json"
+    # Calendario destino de escritura. La cuenta autenticada es
+    # jarvis.gienini2.1009 pero los eventos deben caer en el calendario
+    # personal de Juanpa (compartido con permiso de escritura). "primary"
+    # apuntaria al calendario de la cuenta de Jarvis, no al de Juanpa.
+    GOOGLE_DEFAULT_CALENDAR_ID: str = "gienini2@gmail.com"
 
     # Centro de Mando
     MANDO_API_URL: str = "https://figaro-server.taild7b9e6.ts.net/mando-api"

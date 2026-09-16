@@ -128,17 +128,16 @@ def _login_garmin():
         except Exception:
             pass  # sesión caducada/corrupta → login completo abajo
 
-    # 2. Login completo con credenciales y persistir tokens para la próxima
+    # 2. Login completo con credenciales. Pasar el tokenstore hace que
+    #    garminconnect persista él mismo los tokens OAuth (client.client.dump)
+    #    tras autenticar, para reanudar la próxima sin re-login → evita el 429
+    #    recurrente. Solo guarda si la autenticación fue real (no en un 429).
     if not (GARMIN_EMAIL and GARMIN_PASSWORD):
         raise RuntimeError("Faltan GARMIN_EMAIL / GARMIN_PASSWORD en el .env")
 
+    os.makedirs(GARMIN_TOKENSTORE, exist_ok=True)
     client = Garmin(GARMIN_EMAIL, GARMIN_PASSWORD)
-    client.login()
-    try:
-        os.makedirs(GARMIN_TOKENSTORE, exist_ok=True)
-        client.garth.dump(GARMIN_TOKENSTORE)
-    except Exception:
-        pass  # si no se puede guardar, seguimos igualmente
+    client.login(GARMIN_TOKENSTORE)
     return client
 
 

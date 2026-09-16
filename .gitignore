@@ -27,6 +27,7 @@ netscan/reports/
 config/training_data.json
 alpha50/*.json
 alpha50/*.xlsx
+alpha50/.garmin_session/   # sesión OAuth de Garmin (tokens) — nunca versionar
 
 # Claude memory
 .claude/

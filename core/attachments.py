@@ -82,7 +82,26 @@ def _from_image(data: bytes) -> str:
 
 _IMAGE_EXTS = ("png", "jpg", "jpeg", "webp", "gif", "bmp")
 
+
+def _from_audio(data: bytes) -> str:
+    """Audio (nota de voz) -> transcripcion a texto via Whisper en Groq
+    (core.transcribe). Asi el LLM del chat 'oye' el audio a traves de su texto."""
+    from core.transcribe import transcribe
+    try:
+        text = transcribe(data)
+    except Exception as e:
+        raise UnsupportedAttachment(f"no pude transcribir el audio con Whisper: {e}")
+    if not text:
+        raise UnsupportedAttachment("el audio no contenia voz reconocible.")
+    return text
+
+
+# Formatos de nota de voz habituales (Telegram usa ogg/opus; moviles m4a).
+_AUDIO_EXTS = ("ogg", "oga", "opus", "mp3", "wav", "m4a", "webm", "flac", "aac")
+
 _EXTRACTORS = {ext: _from_text for ext in _TEXT_EXTS}
 _EXTRACTORS["pdf"] = _from_pdf
 for _img_ext in _IMAGE_EXTS:
     _EXTRACTORS[_img_ext] = _from_image
+for _audio_ext in _AUDIO_EXTS:
+    _EXTRACTORS[_audio_ext] = _from_audio

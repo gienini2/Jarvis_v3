@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     GROQ_MODEL_GENERAL: str = "openai/gpt-oss-120b"
     GROQ_MODEL_CODE: str = "qwen/qwen3.8-27b"
+    # Whisper en Groq para transcribir notas de voz (core/transcribe.py).
+    # turbo = rapido y barato, ideal para audios cortos; large-v3 = mas preciso.
+    GROQ_WHISPER_MODEL: str = "whisper-large-v3-turbo"
 
     # Kimi / Moonshot (API compatible con OpenAI). Fallback de contexto grande.
     KIMI_API_KEY: str = ""

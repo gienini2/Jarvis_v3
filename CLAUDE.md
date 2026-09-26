@@ -31,6 +31,12 @@ NO es "Ollama local con fallback a Anthropic". La selección de modelo es
 - **Groq** = backend principal (cloud, rápido por LPU). Modelos vivos:
   `openai/gpt-oss-120b` (general/tools/reasoning), `openai/gpt-oss-20b`,
   `qwen/qwen3.8-27b` (code/visión; sustituye a qwen3.6-27b, retirado el 14/09/2026).
+  gpt-oss-120b es lo más potente que Groq sirve a esta cuenta (no hay mejor allí).
+- **Whisper (voz→texto)**: `core/transcribe.py` usa `whisper-large-v3-turbo` de
+  Groq (`settings.GROQ_WHISPER_MODEL`). Enganchado a `core/attachments.py`: un
+  adjunto de audio (ogg/opus/mp3/m4a/wav…) se transcribe a texto ANTES de llegar
+  al LLM, igual que las imágenes con visión. Nota: por la web/API ya funciona;
+  para notas de voz de **Telegram** falta que el relay de Figaro reenvíe el audio.
 - **NVIDIA NIM** = fallback cloud. Modelos vivos y validados (con tool-calling):
   `meta/llama-3.3-70b-instruct`, `openai/gpt-oss-120b`,
   `nvidia/llama-3.3-nemotron-super-49b-v1.5`, `openai/gpt-oss-20b`,
@@ -64,6 +70,11 @@ NO es "Ollama local con fallback a Anthropic". La selección de modelo es
 - Embeddings `nomic-embed-text` (768 dims) vía Ollama `/api/embed`, cache LRU.
 - Almacén en PostgreSQL local con **pgvector** (operador `<=>`). Store en hilo
   daemon (no bloquea la respuesta HTTP).
+- Cada turno se guarda solo, troceado a ~2000 chars (`store_memory_chunks`; el
+  embedding de un bloque más largo solo representa el principio). Tool `remember`
+  para "guarda esto en tu memoria" (source = tema) y `search_memory(source=...)`
+  para filtrar. Respuestas de entrevista: `data/entrevista_qa.json` →
+  `python scripts/load_entrevista.py` (source `entrevista`, idempotente).
 - Historial migrado ya ingerido: ~8.500 memorias (Claude 277 + Gemini 913 +
   ChatGPT 7328) vía `scripts/ingest_all.py --source claude|gemini|chatgpt`.
 
@@ -85,6 +96,9 @@ NO es "Ollama local con fallback a Anthropic". La selección de modelo es
    usa a Jarvis como cerebro por aquí).
 - La API `api/main.py` (FastAPI `:3000`) exige header `X-Jarvis-Key`
   (`ApiKeyMiddleware`) salvo `/health`. Servicio Windows NSSM `JarvisAPI`.
+- **Adjuntos** (`core/attachments.py`): texto/PDF, imágenes (visión por el router)
+  y audio/notas de voz (ogg, opus, mp3, m4a…) → texto con Whisper en Groq
+  (`core/transcribe.py`, modelo `settings.GROQ_WHISPER_MODEL`).
 
 ## Dominios / capacidades
 - **Centro de Mando** (tareas): `connectors/mando_tasks.py` + `mando_sync.py` →
@@ -151,10 +165,11 @@ Si un ID configurado desaparece, el modelo deja de servir.
   (`kimi-k3`, `kimi-k2.7-code`, `moonshot-v1-*`), pero **la cuenta está suspendida**
   (429 "account is suspended") → sigue `enabled:false` en `providers.json`.
   Reactivar cuando se resuelva el billing de Moonshot y validar con `check_models.py`.
-- Retirar `ANTHROPIC_API_KEY` de `.env` (sin uso; vacía). Además `.env` tiene
-  overrides de modelo con nombres que `settings.py` NO lee (`NVIDIA_GENERAL_MODEL`
-  vs el campo real `NVIDIA_MODEL_GENERAL`, `GROQ_DEFAULT_MODEL`, etc.) → residuo
-  que nunca tuvo efecto; limpiar. La verdad de modelos es `providers.json`.
+- **RESUELTO** limpieza de `.env` (2026-09-26): fuera `ANTHROPIC_API_KEY` y 11
+  overrides de modelo con nombres que `settings.py` no leía (`NVIDIA_*_MODEL`
+  mal nombrados, `GROQ_DEFAULT/CODE/REASONING_MODEL`, `OLLAMA_MODEL_*`,
+  `KIMI_*_MODEL`). Se conservó `ALPHA50_HORA` (sí lo usa el scheduler). La verdad
+  de modelos es `providers.json` + los campos reales de `settings.py`.
 - Alinear `README.md` y `.env.example` con la realidad (siguen describiendo la
   arquitectura vieja "solo local + Anthropic"; DB puesta como `jarvis_v2`).
 - `POSTGRES_PASSWORD` en texto plano; credenciales Garmin en `.env` en claro.

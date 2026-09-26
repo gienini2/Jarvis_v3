@@ -8,7 +8,7 @@ import threading
 from core.llm import generate
 from core import backend_state
 from core.memory import save_message as _save_message
-from core.rag import search_memories, store_memory
+from core.rag import search_memories, store_memory_chunks
 from core.intent import classify, log_intent as _log_intent
 from core.tasks import (
     resolve_task_ref,
@@ -61,7 +61,7 @@ def process(message: str) -> tuple[str, str]:
         log.debug("intent=alpha50")
         _log_intent_safely(message, "alpha50", None, executed=True)
         threading.Thread(
-            target=store_memory,
+            target=store_memory_chunks,
             args=(f"user: {message}\nassistant: {alpha50_resp}",),
             kwargs={"source": "conversation"},
             daemon=True,
@@ -83,7 +83,7 @@ def process(message: str) -> tuple[str, str]:
         _log_intent_safely(message, "code", None, executed=True)
         _save_message_safely("assistant", code_resp)
         threading.Thread(
-            target=store_memory,
+            target=store_memory_chunks,
             args=(f"user: {message}\nassistant: {code_resp}",),
             kwargs={"source": "conversation"},
             daemon=True,
@@ -105,7 +105,7 @@ def process(message: str) -> tuple[str, str]:
         _log_intent_safely(message, "agent", None, executed=True)
         _save_message_safely("assistant", response)
         threading.Thread(
-            target=store_memory,
+            target=store_memory_chunks,
             args=(f"user: {message}\nassistant: {response}",),
             kwargs={"source": "conversation"},
             daemon=True,
@@ -171,7 +171,7 @@ def process(message: str) -> tuple[str, str]:
         _save_message_safely("assistant", response)
 
     threading.Thread(
-        target=store_memory,
+        target=store_memory_chunks,
         args=(f"user: {message}\nassistant: {response}",),
         kwargs={"source": "conversation"},
         daemon=True,

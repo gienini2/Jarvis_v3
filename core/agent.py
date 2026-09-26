@@ -12,7 +12,7 @@ from core.tools import TOOLS, call_tool
 log = logging.getLogger("jarvis.agent")
 
 MAX_TOOL_ROUNDS = 6   # margen para peticiones multi-paso (varios borrados/cambios encadenados)
-MAX_TOOL_RESULT_CHARS = 3500   # red de seguridad; las tools ya devuelven resultados compactos
+MAX_TOOL_RESULT_CHARS = 12000   # red de seguridad; search_memory devuelve recuerdos enteros
 
 # Prompt COMPACTO para el tool-calling. El SYSTEM_PROMPT largo de core/llm.py
 # (~1000 tokens) + las 17 tools (~2700) hacian que cada peticion superara los
@@ -29,6 +29,10 @@ AGENT_SYSTEM_PROMPT = (
     "mas un 'no lo se' que un dato inventado. Esto va por encima de sonar util o completo.\n"
     "Herramientas para datos reales: tareas del Centro de Mando, correos (Gmail), calendario, "
     "Drive, memoria de conversaciones pasadas, entrenos de Alpha50, escaneo de red, auditorias.\n"
+    "MEMORIA: si te pide recordar/guardar algo 'en tu memoria', usa remember (NO add_task: el "
+    "Centro de Mando es solo para tareas). Para recuperarlo, search_memory. Si te pide que "
+    "responder a una pregunta de entrevista, busca con search_memory(source='entrevista') y "
+    "basa la respuesta en sus experiencias reales guardadas ahi.\n"
     "Enviar correo/Telegram y editar codigo tienen efecto inmediato: reune todo lo necesario "
     "(destinatario, asunto, cuerpo; ruta e instruccion) antes de llamar; si falta un dato, "
     "preguntalo primero.\n"
@@ -77,7 +81,7 @@ def _recent_history() -> list[dict]:
     except Exception:
         return []
     return [
-        {"role": role, "content": msg[:600]}   # recortado: solo para dar contexto, no reventar tokens
+        {"role": role, "content": msg}
         for role, msg, _ts in rows
         if role in ("user", "assistant")
     ]

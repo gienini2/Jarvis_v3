@@ -81,8 +81,37 @@ def store_memory(content: str, source: str = "conversation", metadata: dict | No
     return row[0] if row else None
 
 
-def search_memories(query: str, limit: int = 5) -> list[dict]:
+CHUNK_CHARS = 2000   # nomic-embed-text con num_ctx 2048: textos mas largos solo embeben el principio
+
+
+def chunk_text(text: str, max_chars: int = CHUNK_CHARS) -> list[str]:
+    """Trocea por parrafos para que cada trozo tenga su propio embedding."""
+    chunks, current = [], ""
+    for para in text.split("\n"):
+        while len(para) > max_chars:
+            if current:
+                chunks.append(current)
+                current = ""
+            chunks.append(para[:max_chars])
+            para = para[max_chars:]
+        if current and len(current) + len(para) + 1 > max_chars:
+            chunks.append(current)
+            current = ""
+        current = f"{current}\n{para}" if current else para
+    if current.strip():
+        chunks.append(current)
+    return [c.strip() for c in chunks if c.strip()]
+
+
+def store_memory_chunks(content: str, source: str = "conversation", metadata: dict | None = None) -> list[int | None]:
+    return [store_memory(chunk, source=source, metadata=metadata) for chunk in chunk_text(content)]
+
+
+def search_memories(query: str, limit: int = 5, source: str | None = None) -> list[dict]:
     """
+    `source` restringe a un origen concreto (p. ej. 'entrevista'); sin el, las
+    ~8.500 memorias de ChatGPT/Gemini tapan a las pocas guardadas con remember.
+
     FTS como pre-filtro (igual que antes) y, dentro de ese subconjunto, orden
     por distancia coseno pgvector (operador <=>, 0 = identico). Si el FTS no
     trae suficientes candidatos (query sin palabras clave claras), se
@@ -96,6 +125,22 @@ def search_memories(query: str, limit: int = 5) -> list[dict]:
 
     conn = get_connection()
     cur = conn.cursor()
+
+    if source:
+        cur.execute(
+            """
+            SELECT id, content, source, 1 - (embedding <=> %s::vector) AS similarity
+            FROM memories
+            WHERE embedding IS NOT NULL AND source = %s
+            ORDER BY embedding <=> %s::vector
+            LIMIT %s
+            """,
+            (vec_literal, source, vec_literal, limit),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [{"id": r[0], "content": r[1], "source": r[2], "similarity": r[3]} for r in rows]
 
     cur.execute(
         """

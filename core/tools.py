@@ -15,7 +15,7 @@ error para que el LLM se lo pregunte a Juan Pablo en vez de adivinar.
 Fase 3 (autonomia sobre el propio codigo de Jarvis) todavia no esta aqui.
 """
 from core.tasks import find_tasks_by_project, find_tasks_by_keyword, find_all_pending, sync_tasks_from_json
-from core.rag import search_memories
+from core.rag import search_memories, store_memory_chunks
 from connectors.google_tools import (
     get_recent_emails,
     search_emails,
@@ -80,9 +80,32 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "description": "Que buscar en la memoria"},
-                    "limit": {"type": "integer", "description": "Maximo de resultados, por defecto 10 si se omite"},
+                    "limit": {"type": "integer", "description": "Maximo de resultados, por defecto 4 si se omite"},
+                    "source": {
+                        "type": "string",
+                        "description": "Opcional: limitar a un tema guardado con remember, ej. 'entrevista'. Vacio = todo.",
+                    },
                 },
                 "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "remember",
+            "description": (
+                "Guarda informacion en la memoria persistente de Jarvis (PostgreSQL + embeddings) "
+                "para recuperarla despues con search_memory. Usar cuando Juan Pablo diga 'recuerda', "
+                "'guarda esto en tu memoria', 'tenlo en memoria'. NO es el Centro de Mando."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "content": {"type": "string", "description": "Texto completo a recordar, sin resumir"},
+                    "topic": {"type": "string", "description": "Etiqueta corta del tema, ej. 'entrevista', 'preferencias'"},
+                },
+                "required": ["content"],
             },
         },
     },
@@ -610,11 +633,17 @@ def _compact_tasks(tasks: list[dict]) -> list[dict]:
     return [{"prioridad": t["priority"], "proyecto": t["project"], "tarea": t["title"]} for t in tasks]
 
 
-def search_memory(query: str, limit: int = 6) -> list[dict]:
-    # Cap de resultados y de longitud: 10 memorias enteras podian ocupar miles de
-    # tokens y reventar el limite del modelo. 6 fragmentos recortados bastan.
-    mems = search_memories(query, limit=min(limit, 6))
-    return [{"recuerdo": m["content"][:400], "similitud": round(m.get("similarity", 0), 2)} for m in mems]
+def search_memory(query: str, limit: int = 4, source: str = "") -> list[dict]:
+    # Recuerdos enteros (sin recortar): el cap va en numero de resultados.
+    mems = search_memories(query, limit=min(limit, 6), source=source or None)
+    return [{"recuerdo": m["content"], "similitud": round(m.get("similarity", 0), 2)} for m in mems]
+
+
+def remember(content: str, topic: str = "nota") -> dict:
+    ids = store_memory_chunks(content, source=topic, metadata={"tool": "remember"})
+    if not ids or not all(ids):
+        return {"error": "No pude guardar (embedding o Postgres no disponible)."}
+    return {"ok": True, "memorias_guardadas": len(ids), "topic": topic}
 
 
 def list_recent_emails(max_results: int = 5) -> list[dict]:
@@ -1040,6 +1069,7 @@ def self_extend(
 FUNCTIONS = {
     "query_tasks": query_tasks,
     "search_memory": search_memory,
+    "remember": remember,
     "list_recent_emails": list_recent_emails,
     "search_gmail": search_gmail,
     "list_calendar_events": list_calendar_events,

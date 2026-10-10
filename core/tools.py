@@ -576,6 +576,35 @@ TOOLS = [
 ]
 
 # ---------------------------------------------------------------------------
+# Ramas de herramientas (optimizacion de tokens de entrada)
+# ---------------------------------------------------------------------------
+# El set completo (~3200 tokens) viajaba en CADA ronda. La mayoria de mensajes
+# son charla / recuerdo / consulta y no necesitan actuar. Rama LIGERA = lo
+# minimo; si el modelo necesita ACTUAR, llama a 'usar_herramientas' y el agente
+# recarga el set completo (una ronda extra, sin perder capacidad).
+LIGHT_TOOL_NAMES = {"search_memory", "remember", "query_tasks"}
+
+ESCALATE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "usar_herramientas",
+        "description": (
+            "Llama a esto SOLO si para responder necesitas ACTUAR: correos (Gmail), "
+            "calendario, Drive, crear/editar/completar/borrar tareas, editar codigo, "
+            "auditar un repo o escanear la red. Carga el resto de herramientas. "
+            "Para charlar, recordar o consultar tareas NO hace falta."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+    },
+}
+
+
+def light_tools() -> list:
+    """Rama ligera: solo memoria/consulta + la tool de escape."""
+    return [t for t in TOOLS if t["function"]["name"] in LIGHT_TOOL_NAMES] + [ESCALATE_TOOL]
+
+
+# ---------------------------------------------------------------------------
 # Implementaciones -- Fase 1 (envuelven funciones ya existentes, solo lectura)
 # ---------------------------------------------------------------------------
 

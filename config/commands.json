@@ -1,0 +1,33 @@
+{
+  "_comment": "Chuleta de comandos de Jarvis. La pestaña 'Comandos' de la UI lee este archivo en vivo (GET /commands). Para ampliar: añade una línea en 'commands' con group/cmd/desc. Sin tocar código.",
+  "commands": [
+    {"group": "Código", "cmd": "/code <petición>", "desc": "Programar con el modelo de código (Groq qwen3.8 online / qwen2.5-coder offline)"},
+    {"group": "Código", "cmd": "/code!  ·  /coder  ·  codigo!  ·  codea!", "desc": "Programar SIN censura con dolphin3 local (offline, sin disclaimers)"},
+    {"group": "Código", "cmd": "hazme / prográmame / escríbeme un script…", "desc": "Apertura natural → modo código potente"},
+
+    {"group": "Memoria", "cmd": "guarda esto en tu memoria: …  ·  recuerda que…", "desc": "Guarda info en la memoria persistente (tool remember)"},
+    {"group": "Memoria", "cmd": "¿te acuerdas de…?  ·  busca en chats sobre…", "desc": "Busca en el historial / memoria (RAG)"},
+
+    {"group": "Tareas (Centro de Mando)", "cmd": "qué tengo pendiente en <proyecto>", "desc": "Lista las tareas del proyecto"},
+    {"group": "Tareas (Centro de Mando)", "cmd": "añade tarea en <proyecto>: <texto>", "desc": "Crea una tarea nueva"},
+    {"group": "Tareas (Centro de Mando)", "cmd": "marca <tarea> como hecha", "desc": "Completa una tarea"},
+    {"group": "Tareas (Centro de Mando)", "cmd": "cambia la prioridad de <tarea> a alta/media/baja", "desc": "Actualiza una tarea"},
+    {"group": "Tareas (Centro de Mando)", "cmd": "borra la tarea <tarea>", "desc": "Elimina una tarea"},
+
+    {"group": "Google", "cmd": "lee mis correos  ·  busca correos de…", "desc": "Gmail (lectura)"},
+    {"group": "Google", "cmd": "manda un correo a <dest>: <asunto y cuerpo>", "desc": "Gmail (envío real)"},
+    {"group": "Google", "cmd": "qué tengo hoy/mañana  ·  crea un evento…", "desc": "Google Calendar"},
+    {"group": "Google", "cmd": "busca el archivo <nombre> en Drive", "desc": "Google Drive"},
+
+    {"group": "Seguridad / Red", "cmd": "escanea mi red  ·  busca vulnerabilidades en la red", "desc": "Netscan — informe por Telegram en 1-3 min"},
+
+    {"group": "Auditoría de código", "cmd": "audita el repo <ruta o alias>", "desc": "Auditoría de código local"},
+    {"group": "Auditoría de código", "cmd": "audita <proyecto> en figaro", "desc": "Auditoría remota por SSH"},
+
+    {"group": "Entrenamiento (Alpha50)", "cmd": "alpha50 estado / semana / tendencia / nivel / ahora", "desc": "Estado y plan de entrenamiento"},
+    {"group": "Entrenamiento (Alpha50)", "cmd": "qué entreno toca  ·  repaso de entrenos", "desc": "Plan de hoy / métricas reales de Garmin"},
+
+    {"group": "Voz (UI web)", "cmd": "🎤 botón de micro", "desc": "Grabar y transcribir con Whisper — háblale a Jarvis"},
+    {"group": "Voz (UI web)", "cmd": "🔊 botón de altavoz", "desc": "Que Jarvis lea las respuestas en voz alta"}
+  ]
+}

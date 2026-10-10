@@ -7,11 +7,26 @@ import logging
 
 from core.llm_types import LLMRequest
 from core import llm_router as router
-from core.tools import TOOLS, call_tool
+from core.tools import TOOLS, call_tool, light_tools
 
 log = logging.getLogger("jarvis.agent")
 
 MAX_TOOL_ROUNDS = 6   # margen para peticiones multi-paso (varios borrados/cambios encadenados)
+
+# Rama ligera vs completa (ahorro de tokens de entrada). Si classify() da uno de
+# estos intents, basta con memoria/consulta -> set reducido. Cualquier otro
+# (acciones: google, mando CRUD, codigo, netscan...) arranca ya con todo.
+LIGHT_INTENTS = {"general", "memory_search", "query_task"}
+
+
+def _pick_tools(user_prompt: str) -> list:
+    try:
+        from core.intent import classify
+        if classify(user_prompt).type in LIGHT_INTENTS:
+            return light_tools()
+    except Exception as e:
+        log.warning(f"[agent] clasificacion de rama fallo ({e}); uso set completo")
+    return TOOLS
 MAX_TOOL_RESULT_CHARS = 12000   # red de seguridad; search_memory devuelve recuerdos enteros
 
 # Prompt COMPACTO para el tool-calling. El SYSTEM_PROMPT largo de core/llm.py
@@ -98,9 +113,10 @@ def run(user_prompt: str) -> str:
     if not (messages[-1]["role"] == "user" and messages[-1]["content"] == user_prompt):
         messages.append({"role": "user", "content": user_prompt})
 
+    tools = _pick_tools(user_prompt)
     executed = []
     for round_n in range(MAX_TOOL_ROUNDS):
-        message = router.chat_tools(LLMRequest(prompt=messages, tools=TOOLS))
+        message = router.chat_tools(LLMRequest(prompt=messages, tools=tools))
         tool_calls = message.get("tool_calls")
 
         if not tool_calls:
@@ -125,6 +141,16 @@ def run(user_prompt: str) -> str:
             except json.JSONDecodeError:
                 args = {}
             log.info(f"[agent] ronda={round_n} tool={fn_name} args={args}")
+            if fn_name == "usar_herramientas":
+                # Escape de la rama ligera: recargar el set completo para las
+                # siguientes rondas (una ronda extra, sin perder capacidad).
+                tools = TOOLS
+                messages.append({
+                    "role": "tool", "tool_call_id": tc["id"],
+                    "content": "Herramientas completas cargadas. Continua con la accion pedida.",
+                })
+                log.info(f"[agent] ronda={round_n} escalado a set completo de tools")
+                continue
             result = call_tool(fn_name, args)
             executed.append(fn_name)
             content = json.dumps(result, ensure_ascii=False, default=str)
@@ -140,7 +166,7 @@ def run(user_prompt: str) -> str:
     # todo lo recogido, una llamada final para que el modelo redacte la
     # respuesta con los resultados que ya tiene en `messages`.
     try:
-        final = router.chat_tools(LLMRequest(prompt=messages, tools=TOOLS))
+        final = router.chat_tools(LLMRequest(prompt=messages, tools=tools))
         content = final.get("content")
         if content:
             return content

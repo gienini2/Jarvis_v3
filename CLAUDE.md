@@ -63,6 +63,12 @@ NO es "Ollama local con fallback a Anthropic". La selección de modelo es
 - **FALLBACK**: `core/intent.py` + `core/intent_ml.py` (TF-IDF+SVM,
   `config/intent_model.pkl`, con red de regex). Solo se usa si el agente lanza
   excepción (p. ej. NVIDIA y Ollama caídos a la vez).
+- **Ramas de tools (ahorro de tokens)**: el agente no manda siempre las 23 tools
+  (~3.600 tok/ronda). `classify()` elige rama: **LIGERA** (`general`/`memory_search`/
+  `query_task` → solo `search_memory`/`remember`/`query_tasks` + escape ≈ 540 tok)
+  o **COMPLETA** (acciones). En ligera, si el modelo necesita actuar llama a
+  `usar_herramientas` y se recarga el set completo (una ronda extra, sin perder
+  capacidad). `core/tools.py: LIGHT_TOOL_NAMES`/`light_tools()`, `core/agent.py: _pick_tools()`.
 - Correcciones de clasificación vía endpoint `/aprende`.
 
 ## Memoria y RAG (no es Mem0)
@@ -99,6 +105,12 @@ NO es "Ollama local con fallback a Anthropic". La selección de modelo es
 - **Adjuntos** (`core/attachments.py`): texto/PDF, imágenes (visión por el router)
   y audio/notas de voz (ogg, opus, mp3, m4a…) → texto con Whisper en Groq
   (`core/transcribe.py`, modelo `settings.GROQ_WHISPER_MODEL`).
+- **Modo voz en la UI web** (`web/chat.html`): botón 🎤 graba (MediaRecorder) →
+  `/extract` (Whisper) → transcribe y envía; botón 🔇/🔊 lee las respuestas con
+  `speechSynthesis` del navegador (voces españolas del SO). **0 VRAM** (oído=Groq
+  cloud, voz=navegador) → no compite con dolphin. El micro necesita contexto
+  seguro: va en `http://127.0.0.1:3000/ui`, no por IP de la tailnet (http). Mejora
+  futura de voz: ElevenLabs (cloud, API key) o Piper/Kokoro en CPU.
 
 ## Dominios / capacidades
 - **Centro de Mando** (tareas): `connectors/mando_tasks.py` + `mando_sync.py` →

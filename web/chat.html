@@ -90,6 +90,9 @@
   .btn { border-radius: 12px; padding: 0 14px; height: 44px; cursor: pointer; font-size: 18px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
   .btn.send { background: var(--accent); color: #fff; border: none; font-weight: 600; }
   .btn:disabled { opacity: .5; cursor: default; }
+  .btn.rec { background: var(--danger); color: #fff; border: none; animation: blink 1s infinite; }
+  #ttsBtn { height: 30px; padding: 0 10px; font-size: 15px; margin-left: 10px; }
+  #ttsBtn.on { background: var(--accent); color: #fff; border: none; }
   .hint { font-size: 11px; color: var(--muted); margin-top: 6px; text-align: center; }
 
   /* --- Paneles de datos (Alpha50 / Netscan / Audit) --- */
@@ -120,6 +123,13 @@
   .iconbtn:hover { border-color: var(--accent); } .iconbtn.danger:hover { border-color: var(--danger); }
   .clearbtn { font-size: 12px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel2); color: var(--danger); cursor: pointer; }
   .clearbtn:hover { border-color: var(--danger); }
+  /* --- Comandos (chuleta) --- */
+  .cmdgrp { font-size: 12px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .3px; margin: 16px 0 6px; }
+  .cmdgrp:first-child { margin-top: 2px; }
+  .cmdrow { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .cmdrow code { background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; color: var(--text); }
+  .cmdrow .arrow { color: var(--muted); }
+  .cmdrow .desc { color: var(--muted); font-size: 13px; flex: 1; min-width: 180px; }
 </style>
 </head>
 <body>
@@ -127,6 +137,7 @@
     <span class="logo">🤖</span>
     <span class="title">Jarvis</span>
     <span class="status"><span id="dot" class="dot"></span><span id="statusText">conectando…</span></span>
+    <button type="button" id="ttsBtn" class="btn" title="Leer las respuestas en voz alta">🔇</button>
   </header>
 
   <div class="tabs">
@@ -134,6 +145,7 @@
     <button class="tab-btn" data-tab="mando">📋 Centro de Mando</button>
     <button class="tab-btn" data-tab="alpha50">💪 Alpha50</button>
     <button class="tab-btn" data-tab="scan">🛰️ Netscan / Audit</button>
+    <button class="tab-btn" data-tab="cmds">⌨️ Comandos</button>
   </div>
 
   <!-- ---------------- CHAT ---------------- -->
@@ -147,6 +159,7 @@
         <input id="folder" type="file" webkitdirectory multiple hidden>
         <button type="button" class="btn" id="attachBtn" title="Adjuntar archivo">📎</button>
         <button type="button" class="btn" id="folderBtn" title="Adjuntar carpeta">📁</button>
+        <button type="button" class="btn" id="micBtn" title="Hablar (grabar y transcribir con Whisper)">🎤</button>
         <textarea id="input" rows="1" placeholder="Escribe a Jarvis…  (Enter envía · Shift+Enter salto de línea)"></textarea>
         <button type="submit" class="btn send" id="sendBtn" title="Enviar">➤</button>
       </div>
@@ -182,13 +195,23 @@
     <div class="pane" id="resScan"><div class="empty">Cargando…</div></div>
   </div>
 
+  <!-- ---------------- COMANDOS (chuleta) ---------------- -->
+  <div class="tab-panel" id="panel-cmds">
+    <div class="subtabs">
+      <span class="sub-title">⌨️ Atajos y comandos · se editan en config/commands.json</span>
+      <button class="sub-btn reload" id="reloadCmds" title="Recargar">🔄</button>
+    </div>
+    <div class="pane" id="resCmds"><div class="empty">Cargando…</div></div>
+  </div>
+
 <script>window.JARVIS_KEY = "__JARVIS_KEY__";</script>
 <script>
 const $ = (s) => document.querySelector(s);
 const log = $("#log"), input = $("#input"), form = $("#form"),
       chipsBox = $("#chips"), sendBtn = $("#sendBtn"),
       dot = $("#dot"), statusText = $("#statusText"),
-      resAlpha = $("#resAlpha"), resScan = $("#resScan"), resMando = $("#resMando");
+      resAlpha = $("#resAlpha"), resScan = $("#resScan"), resMando = $("#resMando"),
+      resCmds = $("#resCmds");
 
 const MAX_FILE = 80 * 1024, MAX_TOTAL = 200 * 1024;
 let attachments = [], busy = false, currentScanSub = "netscan";
@@ -247,6 +270,7 @@ function switchTab(name) {
   if (name === "mando") loadMando();
   if (name === "alpha50") loadAlpha50();
   if (name === "scan") loadScan(currentScanSub);
+  if (name === "cmds") loadCommands();
 }
 document.querySelectorAll(".tab-btn").forEach(b => b.onclick = () => switchTab(b.dataset.tab));
 document.querySelectorAll(".sub-btn[data-sub]").forEach(b => b.onclick = () => {
@@ -257,6 +281,27 @@ document.querySelectorAll(".sub-btn[data-sub]").forEach(b => b.onclick = () => {
 $("#reloadAlpha").onclick = () => loadAlpha50();
 $("#reloadMando").onclick = () => loadMando();
 $("#reloadScan").onclick = () => loadScan(currentScanSub);
+$("#reloadCmds").onclick = () => loadCommands();
+
+// ---- Comandos (chuleta leída de config/commands.json) ----
+async function loadCommands() {
+  resCmds.innerHTML = '<div class="empty">Cargando…</div>';
+  try {
+    const d = await (await api("/commands")).json();
+    const cmds = (d && d.commands) || [];
+    if (!cmds.length) { resCmds.innerHTML = '<div class="empty">Sin comandos. Edita config/commands.json.</div>'; return; }
+    let html = '', group = null;
+    for (const c of cmds) {
+      const g = c.group || "Otros";
+      if (g !== group) { html += '<div class="cmdgrp">' + esc(g) + '</div>'; group = g; }
+      html += '<div class="cmdrow"><code>' + esc(c.cmd || "") + '</code>' +
+              '<span class="arrow">→</span><span class="desc">' + esc(c.desc || "") + '</span></div>';
+    }
+    resCmds.innerHTML = html;
+  } catch (e) {
+    resCmds.innerHTML = '<div class="empty">⚠️ ' + esc(e.message) + '</div>';
+  }
+}
 
 // ---- Chat ----
 const newpill = $("#newpill");
@@ -409,6 +454,7 @@ async function send() {
     const el = addMsg("assistant", "");
     attachments = []; renderChips(); setStatus(true, "conectado");
     await typeInto(el, data.response || "(sin respuesta)");
+    speak(data.response || "");
   } catch (e) {
     pend.remove(); addMsg("assistant", "⚠️ " + e.message); setStatus(false, "error");
   } finally { busy = false; sendBtn.disabled = false; input.focus(); }
@@ -528,6 +574,91 @@ function renderAudit(jobs) {
     (j.summary ? '<pre class="txt">' + esc(j.summary) + '</pre>' : '<div class="meta">(sin resumen ejecutivo)</div>') +
     '</div>').join("");
 }
+
+// ======================= VOZ: oído y habla =======================
+// Oído: micro del navegador -> Whisper en Groq (reutiliza /extract). 0 VRAM.
+// Habla: speechSynthesis del navegador (voz del SO). 0 VRAM, 0 coste.
+// Nota: el micro necesita contexto seguro -> funciona en http://127.0.0.1:3000/ui
+// (o https). Por IP de la tailnet (http://100.x) el navegador bloquea getUserMedia.
+
+const micBtn = $("#micBtn"), ttsBtn = $("#ttsBtn");
+
+// ---- Habla (TTS) ----
+let ttsOn = false;
+function esVoice() {
+  const vs = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
+  return vs.find(v => /^es(-|_)/i.test(v.lang)) || vs.find(v => v.lang && v.lang.toLowerCase().startsWith("es")) || null;
+}
+function speak(text) {
+  if (!ttsOn || !text || !("speechSynthesis" in window)) return;
+  const clean = text
+    .replace(/```[\s\S]*?```/g, ". ")      // no leer bloques de código
+    .replace(/https?:\/\/\S+/g, " enlace ")
+    .replace(/[*_#`>|]/g, "")
+    .replace(/\s+/g, " ").trim();
+  if (!clean) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(clean);
+  const v = esVoice(); if (v) u.voice = v;
+  u.lang = (v && v.lang) || "es-ES"; u.rate = 1.05;
+  speechSynthesis.speak(u);
+}
+ttsBtn.onclick = () => {
+  ttsOn = !ttsOn;
+  ttsBtn.textContent = ttsOn ? "🔊" : "🔇";
+  ttsBtn.classList.toggle("on", ttsOn);
+  ttsBtn.title = ttsOn ? "Voz activada — clic para silenciar" : "Leer las respuestas en voz alta";
+  if (!ttsOn) speechSynthesis.cancel();
+};
+if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => {};
+
+// ---- Oído (STT por micro) ----
+let mediaRec = null, chunks = [], recording = false;
+function blobToB64(blob) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(",", 2)[1] || "");
+    r.onerror = rej; r.readAsDataURL(blob);
+  });
+}
+async function toggleMic() {
+  if (recording) { mediaRec && mediaRec.stop(); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert("El micro necesita contexto seguro. Usa http://127.0.0.1:3000/ui (o https). Por IP de la tailnet el navegador bloquea el micrófono.");
+    return;
+  }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) { alert("No pude acceder al micrófono: " + e.message); return; }
+  chunks = [];
+  mediaRec = new MediaRecorder(stream);
+  mediaRec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+  mediaRec.onstop = async () => {
+    stream.getTracks().forEach(t => t.stop());
+    recording = false; micBtn.textContent = "🎤"; micBtn.classList.remove("rec");
+    const mime = (mediaRec && mediaRec.mimeType) || "audio/webm";
+    const blob = new Blob(chunks, { type: mime });
+    if (!blob.size) return;
+    const prev = input.value;
+    input.value = "🎤 transcribiendo…"; input.disabled = true;
+    try {
+      const b64 = await blobToB64(blob);
+      const ext = mime.includes("ogg") ? "ogg" : (mime.includes("mp4") || mime.includes("m4a") ? "m4a" : "webm");
+      const d = await (await api("/extract", { method: "POST", body: JSON.stringify({ name: "nota." + ext, content_b64: b64 }) })).json();
+      input.disabled = false;
+      const txt = (d && d.text || "").trim();
+      input.value = prev ? (prev + " " + txt) : txt;
+      autoGrow(); input.focus();
+      if (txt) send();   // conversación por voz: transcribe y envía directo
+    } catch (e) {
+      input.disabled = false; input.value = prev;
+      alert("No pude transcribir la nota: " + e.message);
+    }
+  };
+  mediaRec.start();
+  recording = true; micBtn.textContent = "⏹"; micBtn.classList.add("rec");
+}
+micBtn.onclick = toggleMic;
 
 loadHistory();
 input.focus();

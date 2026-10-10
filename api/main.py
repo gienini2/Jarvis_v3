@@ -130,6 +130,18 @@ def ui_page():
     return HTMLResponse(html)
 
 
+@app.get("/commands")
+def commands():
+    """Chuleta de comandos para la pestaña 'Comandos' de la UI. Editable en
+    config/commands.json (una línea por orden); se lee en vivo, sin reiniciar."""
+    import json
+    path = Path(__file__).resolve().parent.parent / "config" / "commands.json"
+    try:
+        return JSONResponse(json.loads(path.read_text(encoding="utf-8")))
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"no pude leer commands.json: {e}"})
+
+
 @app.get("/history")
 def history(limit: int = Query(30)):
     """Ultimos turnos de conversacion para pintar el scrollback de la UI."""

@@ -5,18 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Jarvis</title>
 <style>
-  :root {
+  /* Tema: por defecto oscuro. La hora del sistema decide (JS pone data-theme);
+     antes de que corra el JS, se respeta la preferencia del SO. */
+  :root, :root[data-theme="dark"] {
     --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --border: #2a2f3a;
     --text: #e6e9ef; --muted: #8b93a3; --accent: #4f8cff; --user: #3f6fe0;
     --assistant: #1e222b; --danger: #ff6b6b; --ok: #3ecf8e; --warn: #ffb454;
   }
+  :root[data-theme="light"] {
+    --bg: #f6f7f9; --panel: #ffffff; --panel2: #eef0f4; --border: #dfe3ea;
+    --text: #1b1f27; --muted: #666e7d; --accent: #2f6bff; --user: #2f6bff;
+    --assistant: #eef0f4; --danger: #ff6b6b; --ok: #3ecf8e; --warn: #ffb454;
+  }
   @media (prefers-color-scheme: light) {
-    :root {
+    :root:not([data-theme]) {
       --bg: #f6f7f9; --panel: #ffffff; --panel2: #eef0f4; --border: #dfe3ea;
       --text: #1b1f27; --muted: #666e7d; --accent: #2f6bff; --user: #2f6bff;
       --assistant: #eef0f4;
     }
   }
+  body { transition: background-color .4s ease, color .4s ease; }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
@@ -59,6 +67,8 @@
   .turn.user .bubble { background: var(--user); color: #fff; border-bottom-right-radius: 4px; }
   .turn.assistant .bubble { background: var(--assistant); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
   .bubble .tag { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+  .llmbadge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+  .llmbadge .ic { font-size: 15px; line-height: 1; }
   .bubble strong { font-weight: 700; }
   .bubble em { font-style: italic; }
   .bubble code { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 90%; }
@@ -127,10 +137,18 @@
   .cmdgrp { font-size: 12px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .3px; margin: 16px 0 6px; }
   .cmdgrp:first-child { margin-top: 2px; }
   .cmdrow { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--border); }
-  .cmdrow code { background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; color: var(--text); }
+  .cmdrow code { background: var(--panel2); background: color-mix(in srgb, var(--accent) 14%, var(--panel2)); border: 1px solid var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 6px; padding: 2px 7px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; color: var(--accent); font-weight: 600; }
   .cmdrow .arrow { color: var(--muted); }
   .cmdrow .desc { color: var(--muted); font-size: 13px; flex: 1; min-width: 180px; }
 </style>
+<script>
+  // Tema por hora del SISTEMA: noche (>=19h o <7h) -> oscuro; si no -> claro.
+  // Se aplica aqui, antes de pintar, para que no haya parpadeo de color.
+  (function () {
+    var h = new Date().getHours();
+    document.documentElement.dataset.theme = (h >= 19 || h < 7) ? "dark" : "light";
+  })();
+</script>
 </head>
 <body>
   <header>
@@ -316,6 +334,32 @@ function maybeScroll(force) {
 newpill.onclick = () => { log.scrollTop = log.scrollHeight; hidePill(); };
 log.addEventListener("scroll", () => { if (nearBottom()) hidePill(); });
 
+// Icono por backend LLM. Reemplaza al texto [groq]/[nvidia]/... en el chat.
+const BACKEND_ICONS = {
+  groq: "⚡", nvidia: "🟢", "qwen-local": "🏠", "dolphin-local": "🐬",
+  kimi: "🌙", local: "💻", agent: "🤖",
+};
+const BACKEND_NAMES = {
+  groq: "Groq", nvidia: "NVIDIA", "qwen-local": "qwen local",
+  "dolphin-local": "dolphin local", kimi: "Kimi", local: "local",
+};
+// Separa un prefijo "[backend] ..." del texto. Devuelve {backend, text}.
+function splitBackend(s) {
+  const m = String(s || "").match(/^\s*\[([a-z0-9_-]+)\]\s*/i);
+  return m ? { backend: m[1].toLowerCase(), text: s.slice(m[0].length) } : { backend: null, text: s };
+}
+function setBackendBadge(turn, backend) {
+  const bubble = turn.querySelector(".bubble");
+  if (!bubble) return;
+  const icon = BACKEND_ICONS[backend] || "🤖";
+  const name = BACKEND_NAMES[backend] || backend;
+  const tag = document.createElement("div");
+  tag.className = "tag";
+  tag.innerHTML = '<span class="llmbadge" title="Respondió: ' + esc(name) + '">' +
+                  '<span class="ic">' + icon + '</span>' + esc(name) + '</span>';
+  bubble.insertBefore(tag, bubble.firstChild);
+}
+
 function addMsg(role, text, tag) {
   const empty = log.querySelector(".empty"); if (empty) empty.remove();
   const turn = document.createElement("div");
@@ -451,10 +495,12 @@ async function send() {
   try {
     const data = await (await api("/chat", { method: "POST", body: JSON.stringify({ message: payload }) })).json();
     pend.remove();
+    const { backend, text } = splitBackend(data.response || "(sin respuesta)");
     const el = addMsg("assistant", "");
+    if (backend) setBackendBadge(el, backend);
     attachments = []; renderChips(); setStatus(true, "conectado");
-    await typeInto(el, data.response || "(sin respuesta)");
-    speak(data.response || "");
+    await typeInto(el, text);
+    speak(text);
   } catch (e) {
     pend.remove(); addMsg("assistant", "⚠️ " + e.message); setStatus(false, "error");
   } finally { busy = false; sendBtn.disabled = false; input.focus(); }
@@ -659,6 +705,12 @@ async function toggleMic() {
   recording = true; micBtn.textContent = "⏹"; micBtn.classList.add("rec");
 }
 micBtn.onclick = toggleMic;
+
+// Re-chequeo del tema por hora (si la pestaña queda abierta al cruzar 19h/7h).
+setInterval(function () {
+  const h = new Date().getHours();
+  document.documentElement.dataset.theme = (h >= 19 || h < 7) ? "dark" : "light";
+}, 10 * 60 * 1000);
 
 loadHistory();
 input.focus();

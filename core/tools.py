@@ -1067,6 +1067,9 @@ def self_extend(
     packages = packages or []
     smoke_args = smoke_args or {}
 
+    if smoke_tool in se.SMOKE_FORBIDDEN:
+        return {"error": f"'{smoke_tool}' tiene efectos reales y no sirve como smoke test; usa una tool de solo lectura."}
+
     prohibidos = [p for p in packages if not se.is_package_allowed(p)]
     if prohibidos:
         return {

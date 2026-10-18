@@ -163,12 +163,24 @@ def wait_health(timeout_s: int = HEALTH_TIMEOUT_S) -> bool:
     return False
 
 
+# Tools con efectos reales: no pueden usarse como prueba (la prueba debe ser
+# idempotente). La tool nueva que se quiere probar no esta aqui por definicion.
+SMOKE_FORBIDDEN = {
+    "self_extend", "edit_code", "send_email", "send_telegram_message",
+    "create_calendar_event", "delete_calendar_event",
+    "add_task", "update_task", "complete_task", "delete_task", "delete_project_tasks",
+    "remember", "start_audit", "start_netscan",
+}
+
+
 def smoke_tool(name: str, args: dict) -> dict:
     """Ejecuta una tool real como prueba de la capacidad nueva. Se importa
     core.tools DENTRO de la funcion a proposito: si el cambio rompio ese import,
     aqui salta la excepcion y el resultado marca ok=False -> revert."""
     if not name:
         return {"ok": True, "nota": "sin smoke_tool; solo se valido /health"}
+    if name in SMOKE_FORBIDDEN:
+        return {"ok": False, "error": f"la tool '{name}' tiene efectos reales y no puede usarse como smoke test"}
     try:
         from core.tools import call_tool
         result = call_tool(name, args or {})

@@ -58,6 +58,12 @@ def main():
         tool = sum(t.get("tool_s", 0) for t in group) / len(group)
         print(f"rama {branch}: {len(group)} turnos, {rounds:.1f} rondas, {lat:.1f}s "
               f"(clasificar {pick:.1f}s, tools {tool:.1f}s)")
+    routed = [t for t in turns if t.get("branch") == "dominios"]
+    if routed:
+        escaped = sum(1 for t in routed if t.get("escaped"))
+        print(f"enrutado por temas: {len(routed)} turnos, escape (mal enrutados) {escaped}/{len(routed)}")
+        by_domain = Counter(d for t in routed for d in t.get("domains", []))
+        print("temas elegidos:", ", ".join(f"{d} x{c}" for d, c in by_domain.most_common()))
     used = Counter(name for t in turns for name in t["tools"])
     if used:
         print("tools usadas:", ", ".join(f"{n} x{c}" for n, c in used.most_common(10)))

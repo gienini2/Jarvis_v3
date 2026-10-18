@@ -4,9 +4,11 @@ Tool-calling agent. Provider selection lives in core/llm_router.py.
 """
 import json
 import logging
+import time
 
 from core.llm_types import LLMRequest
 from core import llm_router as router
+from core import llm_stats
 from core.tools import TOOLS, call_tool, light_tools
 
 log = logging.getLogger("jarvis.agent")
@@ -103,6 +105,15 @@ def _recent_history() -> list[dict]:
 
 
 def run(user_prompt: str) -> str:
+    turn = {"branch": "", "rounds": 0, "tools": []}
+    started = time.monotonic()
+    try:
+        return _run(user_prompt, turn)
+    finally:
+        llm_stats.record_turn(turn["branch"], turn["rounds"], turn["tools"], time.monotonic() - started)
+
+
+def _run(user_prompt: str, turn: dict) -> str:
     """
     Loop de tool-calling. Devuelve la respuesta final en texto plano.
     """
@@ -114,8 +125,10 @@ def run(user_prompt: str) -> str:
         messages.append({"role": "user", "content": user_prompt})
 
     tools = _pick_tools(user_prompt)
-    executed = []
+    turn["branch"] = "completa" if tools is TOOLS else "ligera"
+    executed = turn["tools"]
     for round_n in range(MAX_TOOL_ROUNDS):
+        turn["rounds"] = round_n + 1
         message = router.chat_tools(LLMRequest(prompt=messages, tools=tools))
         tool_calls = message.get("tool_calls")
 

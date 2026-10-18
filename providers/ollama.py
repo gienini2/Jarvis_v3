@@ -5,7 +5,7 @@ import requests
 
 from config.settings import settings
 from core.llm_types import ProviderResult
-from providers.base import BaseProvider, raise_with_body
+from providers.base import BaseProvider, raise_with_body, usage_from
 
 
 class OllamaProvider(BaseProvider):
@@ -37,13 +37,15 @@ class OllamaProvider(BaseProvider):
                 timeout=settings.TIMEOUT,
             )
             raise_with_body(response)
+            data = response.json()
             return ProviderResult(
                 self.name,
                 request.model,
                 True,
                 time.monotonic() - started,
-                response.json()["response"],
+                data["response"],
                 None,
+                usage_from(data),
             )
         except Exception as exc:
             return ProviderResult(self.name, request.model, False, time.monotonic() - started, None, exc)
@@ -92,13 +94,15 @@ class OllamaProvider(BaseProvider):
                 timeout=settings.TIMEOUT,
             )
             raise_with_body(response)
+            data = response.json()
             return ProviderResult(
                 self.name,
                 request.model,
                 True,
                 time.monotonic() - started,
-                response.json()["message"],
+                data["message"],
                 None,
+                usage_from(data),
             )
         except Exception as exc:
             return ProviderResult(self.name, request.model, False, time.monotonic() - started, None, exc)

@@ -4,7 +4,7 @@ import requests
 
 from config.settings import settings
 from core.llm_types import ProviderResult
-from providers.base import BaseProvider, raise_with_body, openai_content
+from providers.base import BaseProvider, raise_with_body, openai_content, usage_from
 
 
 class GroqProvider(BaseProvider):
@@ -32,8 +32,9 @@ class GroqProvider(BaseProvider):
                 timeout=(3.05, 90 if images else 15),
             )
             raise_with_body(response)
-            text = response.json()["choices"][0]["message"]["content"]
-            return ProviderResult(self.name, request.model, True, time.monotonic() - started, text, None)
+            data = response.json()
+            text = data["choices"][0]["message"]["content"]
+            return ProviderResult(self.name, request.model, True, time.monotonic() - started, text, None, usage_from(data))
         except Exception as exc:
             return ProviderResult(self.name, request.model, False, time.monotonic() - started, None, exc)
 
@@ -56,8 +57,9 @@ class GroqProvider(BaseProvider):
                 timeout=(3.05, 15),
             )
             raise_with_body(response)
-            message = response.json()["choices"][0]["message"]
-            return ProviderResult(self.name, request.model, True, time.monotonic() - started, message, None)
+            data = response.json()
+            message = data["choices"][0]["message"]
+            return ProviderResult(self.name, request.model, True, time.monotonic() - started, message, None, usage_from(data))
         except Exception as exc:
             return ProviderResult(self.name, request.model, False, time.monotonic() - started, None, exc)
 

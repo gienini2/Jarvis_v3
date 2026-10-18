@@ -5,6 +5,7 @@ from pathlib import Path
 
 import requests
 
+from core import llm_stats
 from core.backend_state import set_backend
 from core.llm_health import health_manager
 from core.llm_types import LLMRequest, LLMResponse
@@ -173,6 +174,7 @@ def _call_candidates(request: LLMRequest, use_tools: bool):
         model_request = replace(request, model=candidate["model"], requirements=requirements)
         result = provider.chat_tools(model_request) if use_tools else provider.chat(model_request)
         last_result = result
+        llm_stats.record_call(result, requirements.get("role", ""), len(request.tools or []))
         if result.success:
             health_manager.record_success(provider_name, result.latency)
             set_backend(_backend_label(provider_name))

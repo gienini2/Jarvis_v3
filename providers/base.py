@@ -31,6 +31,14 @@ def raise_with_body(response: requests.Response):
         )
 
 
+def usage_from(data: dict) -> dict:
+    """Tokens consumidos: formato OpenAI (Groq/NVIDIA/Kimi) u Ollama."""
+    usage = data.get("usage")
+    if usage:
+        return {"in": usage.get("prompt_tokens", 0), "out": usage.get("completion_tokens", 0)}
+    return {"in": data.get("prompt_eval_count", 0), "out": data.get("eval_count", 0)}
+
+
 def openai_content(text: str, request):
     """Contenido para APIs OpenAI-compatibles (Groq, NVIDIA). Si el request trae
     imagenes, devuelve el array multimodal [texto + image_url...]; si no, el texto."""

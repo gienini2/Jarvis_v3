@@ -31,3 +31,4 @@ class ProviderResult:
     latency: float
     response: object = None
     exception: object = None
+    usage: dict | None = None

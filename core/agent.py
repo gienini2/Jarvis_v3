@@ -151,6 +151,14 @@ def run(user_prompt: str) -> str:
                 })
                 log.info(f"[agent] ronda={round_n} escalado a set completo de tools")
                 continue
+            if fn_name not in {t["function"]["name"] for t in tools}:
+                log.warning(f"[agent] ronda={round_n} tool={fn_name} NO ofrecida en esta ronda; rechazada")
+                messages.append({
+                    "role": "tool", "tool_call_id": tc["id"],
+                    "content": json.dumps({"error": f"La herramienta '{fn_name}' no esta disponible ahora. "
+                                                    "Si necesitas actuar, llama a usar_herramientas."}),
+                })
+                continue
             result = call_tool(fn_name, args)
             executed.append(fn_name)
             content = json.dumps(result, ensure_ascii=False, default=str)

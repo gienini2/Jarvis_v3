@@ -1,0 +1,48 @@
+[
+  {"text": "qué cosas me faltan por terminar", "expect": ["tareas"]},
+  {"text": "cierra la tarea de la lavadora", "expect": ["tareas"]},
+  {"text": "añade otra: renovar el DNI", "prev": "qué tareas tengo pendientes", "expect": ["tareas"]},
+  {"text": "cambia a baja la prioridad de la tarea de ordenar el trastero", "expect": ["tareas"]},
+  {"text": "elimina todas las tareas del proyecto web", "expect": ["tareas"]},
+
+  {"text": "me ha escrito alguien del trabajo", "expect": ["correo"]},
+  {"text": "dile a Ana por email que ya está listo", "expect": ["correo"]},
+  {"text": "mándame al móvil un aviso por Telegram a las ocho", "expect": ["correo"]},
+  {"text": "localiza el correo donde me enviaron el presupuesto", "expect": ["correo"]},
+
+  {"text": "tengo planes para el domingo", "expect": ["calendario"]},
+  {"text": "mete en el calendario cena con mis padres el viernes a las 21", "expect": ["calendario"]},
+  {"text": "anula mi cita de las cinco", "expect": ["calendario"]},
+  {"text": "qué hay en mi agenda la semana que viene", "expect": ["calendario"]},
+
+  {"text": "necesito encontrar la presentación que subí a Google Drive", "expect": ["drive"]},
+  {"text": "hay algún pdf de la declaración de la renta en mi nube", "expect": ["drive"]},
+
+  {"text": "qué me toca hoy en el plan de carrera", "expect": ["entreno"]},
+  {"text": "cuánto desnivel acumulé la última semana", "expect": ["entreno"]},
+  {"text": "llevo bien el plan de entrenamiento", "expect": ["entreno"]},
+  {"text": "ayer no pude entrenar, cómo queda el plan", "expect": ["entreno"]},
+
+  {"text": "identifica qué equipos hay en mi subred", "expect": ["red"]},
+  {"text": "mira si alguien se ha colado en el wifi", "expect": ["red"]},
+  {"text": "escaneo completo de vulnerabilidades de mis dispositivos", "expect": ["red"]},
+
+  {"text": "mejora el código del conector de Telegram", "expect": ["codigo"]},
+  {"text": "escanea el proyecto Jarvis buscando bugs", "expect": ["codigo"]},
+  {"text": "añade una función nueva al archivo de tareas", "expect": ["codigo"]},
+
+  {"text": "qué me aconsejaste sobre mi currículum", "expect": ["memoria"]},
+  {"text": "memoriza que mi cumpleaños es en marzo", "expect": ["memoria"]},
+  {"text": "cómo respondí en otra ocasión a la pregunta de por qué quiero este puesto", "expect": ["memoria"]},
+
+  {"text": "venga, hasta mañana", "expect": ["charla"]},
+  {"text": "cuál es la capital de Australia", "expect": ["charla"]},
+  {"text": "cuéntame algo curioso del espacio", "expect": ["charla"]},
+  {"text": "me recomiendas una serie", "expect": ["charla"]},
+
+  {"text": "apunta la tarea de comprar regalo y ponla en el calendario el sábado", "expect": ["tareas", "calendario"]},
+  {"text": "lee mi último correo y guarda en tu memoria lo importante", "expect": ["correo", "memoria"]},
+
+  {"text": "hazlo", "prev": "envía un correo a Marta diciendo que llego tarde", "expect": ["correo"]},
+  {"text": "y la de mañana", "prev": "qué reuniones tengo hoy", "expect": ["calendario"]}
+]

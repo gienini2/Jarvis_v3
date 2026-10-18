@@ -1,0 +1,293 @@
+{
+  "min_score": 0.45,
+  "margin": 0.04,
+  "max_domains": 3,
+  "base": "Eres Jarvis, asistente personal de Juan Pablo (Juanpa), local-first en su PC.\nREGLA #1, INQUEBRANTABLE: NO te inventes NADA. Todo dato concreto (tareas, correos, eventos, cifras, nombres, fechas, rutas) DEBE venir de una herramienta o del contexto de esta conversacion. Si no lo has obtenido de una tool, NO lo afirmes. Ante la duda, llama a la herramienta; si no devuelve nada o falla, dilo tal cual ('no encontre...', 'no pude consultarlo') en vez de rellenar con algo que suene plausible. Vale mil veces mas un 'no lo se' que un dato inventado. Esto va por encima de sonar util o completo.\nSi para responder necesitas una herramienta que no tienes ahora, llama a usar_herramientas.\nResponde en castellano, directo y sin relleno; algun emoji esta bien.",
+  "attachments": "ADJUNTOS: los archivos te llegan YA convertidos a texto, entre '[Archivo adjunto: nombre]' y '[Fin del archivo]'. Si es una imagen, ese texto es una DESCRIPCION hecha por un modelo de vision: usala como si hubieras visto la imagen y responde a partir de ella. NUNCA digas que no puedes ver ni analizar imagenes -- si hay descripcion, si puedes.",
+  "domains": {
+    "charla": {
+      "tools": [
+        "search_memory"
+      ],
+      "prompt": "Herramientas para datos reales: tareas del Centro de Mando, correos (Gmail), calendario, Drive, memoria de conversaciones pasadas, entrenos de Alpha50, escaneo de red, auditorias.",
+      "examples": [
+        "hola",
+        "buenos días Jarvis",
+        "gracias, perfecto",
+        "cómo estás hoy",
+        "cuéntame un chiste",
+        "qué puedes hacer",
+        "ok vale",
+        "explícame qué es un embedding",
+        "qué opinas de esto",
+        "ayúdame a pensar un plan para el fin de semana",
+        "traduce esta frase al inglés",
+        "dame un consejo para dormir mejor",
+        "resume este texto en tres líneas",
+        "qué diferencia hay entre RAM y VRAM",
+        "buenas noches",
+        "hasta luego",
+        "perfecto, entendido",
+        "qué tal el día",
+        "puedes explicarme cómo funciona un motor eléctrico",
+        "dame ideas para una cena",
+        "escribe un poema corto",
+        "cuánto es 15 por 12",
+        "me aburro"
+      ]
+    },
+    "memoria": {
+      "tools": [
+        "search_memory",
+        "remember"
+      ],
+      "prompt": "MEMORIA: si te pide recordar/guardar algo 'en tu memoria', usa remember (NO add_task: el Centro de Mando es solo para tareas). Para recuperarlo, search_memory. Si te pide responder a una pregunta de entrevista, busca con search_memory(source='entrevista') y basa la respuesta en sus experiencias reales guardadas ahi.",
+      "examples": [
+        "qué te conté sobre mi entrevista",
+        "acuérdate de que mi coche es un Seat León",
+        "guarda en tu memoria que prefiero respuestas cortas",
+        "de qué hablamos la semana pasada sobre el proyecto",
+        "busca en tus recuerdos lo que dije de Barcelona",
+        "recuerdas qué decidimos sobre la base de datos",
+        "ayúdame a responder la pregunta de entrevista sobre trabajo en equipo",
+        "qué sabes de mí sobre mis estudios",
+        "busca en las conversaciones antiguas donde hablé de pgvector",
+        "qué dijo ChatGPT sobre los embeddings",
+        "tengo una entrevista, qué experiencias mías puedo contar",
+        "cuál fue mi respuesta cuando me preguntaron por mis puntos débiles",
+        "guarda esto: mi talla de zapatillas es 43",
+        "te acuerdas de lo que hablamos ayer",
+        "recuerda que la reunión con el cliente fue un éxito",
+        "qué te dije sobre",
+        "recuerda esto para más adelante",
+        "busca en nuestras charlas pasadas",
+        "qué experiencia mía encaja con esta pregunta de entrevista",
+        "ten en cuenta que no me gusta madrugar",
+        "qué hablamos del bot de trading"
+      ],
+      "hints": "memori|recuerd|acuerd|entrevista|hablamos|\\bte dije\\b"
+    },
+    "tareas": {
+      "tools": [
+        "query_tasks",
+        "add_task",
+        "update_task",
+        "complete_task",
+        "delete_task",
+        "delete_project_tasks"
+      ],
+      "prompt": "",
+      "examples": [
+        "qué tareas tengo pendientes",
+        "añade una tarea: revisar el contrato de alquiler",
+        "marca como hecha la tarea del informe",
+        "borra la tarea de llamar al dentista",
+        "cambia la prioridad de la tarea de Alpha50 a alta",
+        "vacía todas las tareas del proyecto Figaro",
+        "enséñame las tareas del Centro de Mando",
+        "qué me queda por hacer en el proyecto de la web",
+        "crea una tarea urgente para renovar el dominio",
+        "completa la segunda tarea de la lista",
+        "lista de pendientes de hoy",
+        "pon la tarea de la declaración como prioridad media",
+        "elimina la tarea duplicada",
+        "cuántas tareas abiertas tengo en Jarvis",
+        "apunta como pendiente comprar un cable HDMI",
+        "mis pendientes",
+        "qué tengo por hacer",
+        "sube la prioridad de esa tarea",
+        "baja la prioridad de la tarea del gimnasio",
+        "cambia el título de la tarea",
+        "reabre la tarea que cerré",
+        "tacha lo de enviar la factura",
+        "borra todo lo del proyecto Alpha50",
+        "añade a mi lista: sacar entradas",
+        "qué es lo más urgente que tengo"
+      ],
+      "hints": "\\btareas?\\b|pendientes?|por hacer|por terminar|centro de mando|prioridad|\\bproyecto \\w+"
+    },
+    "correo": {
+      "tools": [
+        "list_recent_emails",
+        "search_gmail",
+        "send_email",
+        "send_telegram_message"
+      ],
+      "prompt": "Enviar correo/Telegram tiene efecto inmediato: reune todo lo necesario (destinatario, asunto, cuerpo) antes de llamar; si falta un dato, preguntalo primero.",
+      "examples": [
+        "lee mis últimos correos",
+        "busca el email de Amazon sobre mi pedido",
+        "tengo algún correo nuevo importante",
+        "envía un correo a Marta diciéndole que llego tarde",
+        "mándame un mensaje por Telegram con el resumen",
+        "redacta y envía un email al casero",
+        "busca en Gmail las facturas de octubre",
+        "qué me escribió Pedro por correo",
+        "avísame por Telegram cuando termines",
+        "responde al último mail del banco",
+        "mira si me ha llegado el correo del curso",
+        "manda un correo con el informe",
+        "correos sin leer de hoy",
+        "escribe un email de agradecimiento al entrevistador",
+        "envía un telegram a mi móvil diciendo hola",
+        "revisa mi bandeja de entrada",
+        "reenvía ese correo a mi hermano",
+        "cuántos emails no leídos tengo",
+        "mándale un mensaje a Laura por Telegram",
+        "hay respuesta del recruiter",
+        "escribe al profesor pidiendo una prórroga",
+        "busca correos de Glovo",
+        "notifícame por Telegram el resultado"
+      ],
+      "hints": "correos?\\b|e-?mails?\\b|\\bmails?\\b|gmail|telegram|bandeja"
+    },
+    "calendario": {
+      "tools": [
+        "list_calendar_events",
+        "find_calendar_events",
+        "create_calendar_event",
+        "delete_calendar_event"
+      ],
+      "prompt": "",
+      "examples": [
+        "qué tengo en el calendario esta semana",
+        "crea un evento mañana a las 10 con el médico",
+        "borra la cita del viernes",
+        "tengo algo el martes por la tarde",
+        "añade al calendario la reunión de las 17:00",
+        "busca el evento del dentista",
+        "cuándo es mi próxima cita",
+        "agenda una revisión el lunes a las 9",
+        "qué eventos hay hoy",
+        "cancela la reunión de mañana",
+        "pon un recordatorio el 3 de noviembre",
+        "estoy libre el jueves a mediodía",
+        "programa una llamada con Laura el miércoles",
+        "agenda del mes que viene",
+        "qué compromisos tengo este fin de semana",
+        "qué tengo el lunes",
+        "mi agenda de hoy",
+        "apunta una cita con el abogado el día 12",
+        "hay algo en el calendario para el sábado",
+        "quita la reunión del miércoles",
+        "busca cuándo fue mi última revisión médica en el calendario",
+        "crea un evento de todo el día el 1 de noviembre",
+        "dime mis próximos eventos"
+      ],
+      "hints": "calendario|agenda|\\bcitas?\\b|eventos?\\b|reuni[oó]n|reuniones"
+    },
+    "drive": {
+      "tools": [
+        "search_files_drive"
+      ],
+      "prompt": "",
+      "examples": [
+        "busca en mi Drive el archivo del presupuesto",
+        "dónde está el documento de la memoria técnica en Drive",
+        "encuentra el PDF del contrato en Google Drive",
+        "lista los archivos de la carpeta de proyectos en Drive",
+        "tengo una hoja de cálculo de gastos en Drive",
+        "busca la presentación de la entrevista en Drive",
+        "localiza el expediente en mi unidad de Google",
+        "busca un archivo por nombre en Drive",
+        "busca en Drive la factura de la luz",
+        "hay algún documento sobre el proyecto en mi Drive",
+        "abre el archivo de la hipoteca en Google Drive",
+        "carpeta compartida en Drive con las fotos"
+      ],
+      "hints": "\\bdrive\\b|google docs|mi nube|nube de google"
+    },
+    "entreno": {
+      "tools": [
+        "query_alpha50_history",
+        "repaso_entrenos"
+      ],
+      "prompt": "Si habla de entrenar, eres su coach de Alpha50: usa query_alpha50_history para el plan y los dias hechos, y repaso_entrenos para las metricas reales de Garmin (km, FC, VO2max, fuerza). El plan manda; registra lo que hace de verdad y echale la bronca si no cumple, pero siempre con datos, sin inventar.",
+      "examples": [
+        "qué toca entrenar hoy",
+        "cómo voy con el plan de Alpha50",
+        "enséñame mis últimos entrenos de Garmin",
+        "cuántos kilómetros he corrido esta semana",
+        "cuál es mi VO2max",
+        "qué día del plan me toca fuerza",
+        "he hecho el entreno de ayer",
+        "repasa mis métricas de frecuencia cardiaca",
+        "qué semana del plan estoy",
+        "cómo ha ido mi carrera de esta mañana",
+        "dime mi progreso en Alpha50",
+        "cuándo es mi día de descanso",
+        "analiza mi rendimiento del último mes",
+        "he cumplido el plan esta semana",
+        "qué ejercicios de fuerza tengo programados",
+        "registra mi entreno de hoy",
+        "he salido a correr esta mañana",
+        "he hecho 10 kilómetros hoy",
+        "cuál es mi ritmo medio",
+        "cuánto me falta para terminar el plan",
+        "mi pulso en reposo ha bajado",
+        "qué rutina de piernas toca",
+        "estoy cumpliendo con Alpha50"
+      ],
+      "hints": "entren|garmin|alpha50|kil[oó]metros|\\bkm\\b|vo2|\\bcorrer\\b|\\bcarrera\\b|ritmo|pulso|desnivel"
+    },
+    "red": {
+      "tools": [
+        "start_netscan"
+      ],
+      "prompt": "",
+      "examples": [
+        "escanea mi red local",
+        "qué dispositivos hay conectados al wifi",
+        "busca vulnerabilidades en los hosts de la LAN",
+        "hay algún intruso en mi red",
+        "haz un nmap rápido a mi subred",
+        "qué puertos abiertos tiene el router",
+        "lanza un escaneo de red con detección de sistema operativo",
+        "lista los equipos de la red de casa",
+        "revisa los CVE de los dispositivos de la red",
+        "descubre hosts en 192.168.1.0/24",
+        "haz un escaneo UDP de la red",
+        "qué máquinas responden en mi red",
+        "dispositivos desconocidos en mi wifi",
+        "escanea los puertos del servidor",
+        "quién está conectado a mi red ahora",
+        "analiza la seguridad de mi LAN",
+        "hay vulnerabilidades en el router"
+      ],
+      "hints": "\\bred\\b|wifi|router|nmap|puertos?\\b|\\blan\\b|subred|escane|vulnerabilidad|intruso"
+    },
+    "codigo": {
+      "tools": [
+        "edit_code",
+        "start_audit",
+        "self_extend"
+      ],
+      "prompt": "Editar codigo tiene efecto inmediato: reune todo lo necesario (ruta e instruccion) antes de llamar; si falta un dato, preguntalo primero.",
+      "examples": [
+        "audita el repositorio de Jarvis",
+        "edita el archivo tools.py para añadir una función",
+        "arregla el bug en el router de modelos",
+        "refactoriza la función de búsqueda de memoria",
+        "revisa el código del proyecto en busca de errores",
+        "cambia el timeout del proveedor Groq en el código",
+        "añade una nueva capacidad a Jarvis y pruébala",
+        "haz una auditoría de seguridad del repo",
+        "implementa un parser para PDFs en el código",
+        "corrige el error de importación en agent.py",
+        "instala una librería nueva y reinicia el servicio",
+        "modifica el script de ingesta para que no duplique",
+        "revisa por qué falla el test",
+        "escribe una función en Python que ordene la lista",
+        "modifica el código del agente",
+        "abre el fichero y corrige el fallo",
+        "haz un cambio en el repositorio",
+        "revisa la calidad del código",
+        "añade un endpoint nuevo a la API",
+        "cambia la función para que devuelva una lista",
+        "audita la carpeta del proyecto"
+      ],
+      "hints": "c[oó]digo|\\brepo\\b|repositorio|\\bfunci[oó]n\\b|\\w+\\.py\\b|\\bbugs?\\b|audit|refactor|endpoint|\\bscript\\b|\\bfichero\\b"
+    }
+  },
+  "hint_boost": 0.06
+}

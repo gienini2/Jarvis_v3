@@ -38,4 +38,4 @@ alpha50/.garmin_session/
 data/domain_examples.npz
 
 # Memorias destiladas con datos personales (revision manual antes de cargar)
-data/claude_code_memorias.json
+data/claude_code_memorias*

@@ -105,12 +105,14 @@ def _recent_history() -> list[dict]:
 
 
 def run(user_prompt: str) -> str:
-    turn = {"branch": "", "rounds": 0, "tools": []}
+    turn = {"branch": "", "rounds": 0, "tools": [], "pick_s": 0.0, "tool_s": 0.0}
     started = time.monotonic()
     try:
         return _run(user_prompt, turn)
     finally:
-        llm_stats.record_turn(turn["branch"], turn["rounds"], turn["tools"], time.monotonic() - started)
+        turn["pick_s"] = round(turn["pick_s"], 2)
+        turn["tool_s"] = round(turn["tool_s"], 2)
+        llm_stats.record_turn(turn, time.monotonic() - started)
 
 
 def _run(user_prompt: str, turn: dict) -> str:
@@ -124,7 +126,9 @@ def _run(user_prompt: str, turn: dict) -> str:
     if not (messages[-1]["role"] == "user" and messages[-1]["content"] == user_prompt):
         messages.append({"role": "user", "content": user_prompt})
 
+    picked_at = time.monotonic()
     tools = _pick_tools(user_prompt)
+    turn["pick_s"] = time.monotonic() - picked_at
     turn["branch"] = "completa" if tools is TOOLS else "ligera"
     executed = turn["tools"]
     for round_n in range(MAX_TOOL_ROUNDS):
@@ -172,7 +176,9 @@ def _run(user_prompt: str, turn: dict) -> str:
                                                     "Si necesitas actuar, llama a usar_herramientas."}),
                 })
                 continue
+            tool_started = time.monotonic()
             result = call_tool(fn_name, args)
+            turn["tool_s"] += time.monotonic() - tool_started
             executed.append(fn_name)
             content = json.dumps(result, ensure_ascii=False, default=str)
             if len(content) > MAX_TOOL_RESULT_CHARS:

@@ -40,14 +40,8 @@ def record_call(result, role: str, n_tools: int):
     })
 
 
-def record_turn(branch: str, rounds: int, tools: list, latency: float):
-    _append({
-        "kind": "turn",
-        "branch": branch,
-        "rounds": rounds,
-        "tools": tools,
-        "latency": round(latency, 2),
-    })
+def record_turn(turn: dict, latency: float):
+    _append({"kind": "turn", **turn, "latency": round(latency, 2)})
 
 
 def load(since: float = 0.0) -> list[dict]:

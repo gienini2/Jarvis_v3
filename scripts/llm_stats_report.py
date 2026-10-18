@@ -42,13 +42,10 @@ def main():
         print(f"{provider}/{model}: {len(group)} llamadas, {len(ok)} ok, "
               f"lat {avg_lat:.1f}s, in medio {avg_in:.0f} tok, errores {dict(errors) or '-'}")
 
-    print("\n=== Pico de tokens en 60 s (limite Groq free: 8000) ===")
-    by_provider = defaultdict(list)
-    for c in calls:
-        if c["ok"]:
-            by_provider[c["provider"]].append(c)
-    for provider, group in sorted(by_provider.items()):
-        print(f"{provider}: {peak_per_minute(group)} tok/min")
+    print("\n=== Pico de tokens en 60 s por modelo (limite Groq free: 8000 por modelo) ===")
+    for (provider, model), group in sorted(by_model.items()):
+        ok = [c for c in group if c["ok"]]
+        print(f"{provider}/{model}: {peak_per_minute(ok)} tok/min")
 
     print("\n=== Turnos del agente ===")
     by_branch = defaultdict(list)
@@ -57,7 +54,10 @@ def main():
     for branch, group in sorted(by_branch.items()):
         rounds = sum(t["rounds"] for t in group) / len(group)
         lat = sum(t["latency"] for t in group) / len(group)
-        print(f"rama {branch}: {len(group)} turnos, {rounds:.1f} rondas, {lat:.1f}s")
+        pick = sum(t.get("pick_s", 0) for t in group) / len(group)
+        tool = sum(t.get("tool_s", 0) for t in group) / len(group)
+        print(f"rama {branch}: {len(group)} turnos, {rounds:.1f} rondas, {lat:.1f}s "
+              f"(clasificar {pick:.1f}s, tools {tool:.1f}s)")
     used = Counter(name for t in turns for name in t["tools"])
     if used:
         print("tools usadas:", ", ".join(f"{n} x{c}" for n, c in used.most_common(10)))

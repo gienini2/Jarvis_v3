@@ -28,6 +28,25 @@ INCLUDE_EXTENSIONS = {
 }
 
 
+# El contenido de lo que se escanea acaba en un LLM cloud (Groq/NVIDIA): nunca
+# credenciales ni datos personales. Se compara contra el nombre en minusculas.
+DENY_NAME_PARTS = (
+    "token", "credential", "secret", "password", "passwd", "apikey", "api_key",
+    "id_rsa", "id_ed25519", "historico", "entrevista",
+)
+DENY_SUFFIXES = {".env", ".pem", ".key", ".pfx", ".p12", ".crt"}
+
+
+def _is_sensitive(p: Path) -> bool:
+    name = p.name.lower()
+    return (
+        name == ".env"
+        or name.startswith(".env.")
+        or p.suffix.lower() in DENY_SUFFIXES
+        or any(part in name for part in DENY_NAME_PARTS)
+    )
+
+
 def scan(repo_path: str) -> list[dict]:
     """
     Recorre el repo y devuelve lista de archivos a auditar.
@@ -52,6 +71,15 @@ def scan(repo_path: str) -> list[dict]:
 
         # Solo incluir extensiones conocidas
         if p.suffix.lower() not in INCLUDE_EXTENSIONS:
+            continue
+
+        if _is_sensitive(p) or any(part.lower().startswith(".garmin") for part in parts):
+            continue
+
+        # No seguir enlaces simbolicos que apunten fuera del repo
+        try:
+            p.resolve().relative_to(root)
+        except ValueError:
             continue
 
         rel = p.relative_to(root)

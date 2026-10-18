@@ -662,9 +662,20 @@ def _compact_tasks(tasks: list[dict]) -> list[dict]:
     return [{"prioridad": t["priority"], "proyecto": t["project"], "tarea": t["title"]} for t in tasks]
 
 
+CURATED_SOURCE = "claude_code"
+CURATED_MIN_SIMILARITY = 0.64
+
+
 def search_memory(query: str, limit: int = 4, source: str = "") -> list[dict]:
     # Recuerdos enteros (sin recortar): el cap va en numero de resultados.
     mems = search_memories(query, limit=min(limit, 6), source=source or None)
+    if not source:
+        seen = {m["id"] for m in mems}
+        curated = [
+            m for m in search_memories(query, limit=2, source=CURATED_SOURCE)
+            if m["id"] not in seen and m["similarity"] >= CURATED_MIN_SIMILARITY
+        ]
+        mems = curated + mems
     return [{"recuerdo": m["content"], "similitud": round(m.get("similarity", 0), 2)} for m in mems]
 
 

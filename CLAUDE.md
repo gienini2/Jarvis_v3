@@ -81,6 +81,12 @@ NO es "Ollama local con fallback a Anthropic". La selección de modelo es
   para "guarda esto en tu memoria" (source = tema) y `search_memory(source=...)`
   para filtrar. Respuestas de entrevista: `data/entrevista_qa.json` →
   `python scripts/load_entrevista.py` (source `entrevista`, idempotente).
+- Memorias destiladas de las sesiones de Claude Code (preferencias, decisiones,
+  infra, estado): `data/claude_code_memorias.json` (fuera de git, datos personales;
+  cada entrada tiene `sensible`/`incluir`) → `python scripts/load_claude_code.py`
+  (source `claude_code`, idempotente, solo `incluir=true`). La tool `search_memory`
+  sin `source` mezcla las 2 mejores de `claude_code` si superan similitud 0.64,
+  porque las ~4.000 memorias de ChatGPT las tapaban.
 - Historial migrado ya ingerido: ~8.500 memorias (Claude 277 + Gemini 913 +
   ChatGPT 7328) vía `scripts/ingest_all.py --source claude|gemini|chatgpt`.
 

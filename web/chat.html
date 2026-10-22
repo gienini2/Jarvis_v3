@@ -105,6 +105,24 @@
   #ttsBtn.on { background: var(--accent); color: #fff; border: none; }
   .hint { font-size: 11px; color: var(--muted); margin-top: 6px; text-align: center; }
 
+  /* Móvil: el textarea ocupa toda la fila y los botones van debajo */
+  @media (max-width: 640px) {
+    header { padding: 8px 12px; }
+    .tabs { padding: 4px 8px 0; }
+    .tab-btn { padding: 8px 12px; font-size: 12px; }
+    #log { padding: 12px 10px; gap: 12px; }
+    .turn { max-width: 100%; }
+    .bubble { padding: 9px 12px; }
+    .bubble pre { white-space: pre-wrap; word-break: break-all; font-size: 12.5px; }
+    form { padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); }
+    .row { flex-wrap: wrap; }
+    textarea { order: -1; flex: 1 0 100%; font-size: 16px; }
+    .btn { height: 40px; padding: 0 12px; }
+    .btn.send { margin-left: auto; padding: 0 22px; }
+    .hint { display: none; }
+    .newpill { bottom: 128px; }
+  }
+
   /* --- Paneles de datos (Alpha50 / Netscan / Audit) --- */
   .subtabs { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--panel); }
   .sub-btn { border: 1px solid var(--border); background: var(--panel2); color: var(--muted); border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
@@ -178,7 +196,7 @@
         <button type="button" class="btn" id="attachBtn" title="Adjuntar archivo">📎</button>
         <button type="button" class="btn" id="folderBtn" title="Adjuntar carpeta">📁</button>
         <button type="button" class="btn" id="micBtn" title="Hablar (grabar y transcribir con Whisper)">🎤</button>
-        <textarea id="input" rows="1" placeholder="Escribe a Jarvis…  (Enter envía · Shift+Enter salto de línea)"></textarea>
+        <textarea id="input" rows="1" placeholder="Escribe a Jarvis…"></textarea>
         <button type="submit" class="btn send" id="sendBtn" title="Enviar">➤</button>
       </div>
       <div class="hint">Enter envía · Shift+Enter nueva línea · 📎 adjunta archivos (se leen y se mandan como contexto)</div>

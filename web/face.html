@@ -217,16 +217,19 @@ async function listen() {
   audioCtx.createMediaStreamSource(stream).connect(an);
   an.connect(sink); sink.connect(audioCtx.destination);
   const buf = new Uint8Array(an.fftSize), started = Date.now();
-  let quietSince = Date.now();
+  let quietSince = Date.now(), smooth = 0, loudRun = 0, floor = 0, floorN = 0;
   maxRms = 0;
   meter = setInterval(() => {
     an.getByteTimeDomainData(buf);
     let sum = 0; for (const b of buf) sum += ((b - 128) / 128) ** 2;
     const rms = Math.sqrt(sum / buf.length), now = Date.now();
-    micLevel = Math.min(1, rms * 8); maxRms = Math.max(maxRms, rms);
-    sub.textContent = `Te escucho… nivel ${rms.toFixed(3)} · toca de nuevo para enviar`;
-    if (rms > .015) { heard = true; quietSince = now; }
-    if ((heard && now - quietSince > 1300) || (!heard && now - started > 8000) || now - started > 30000) stopListening();
+    smooth = smooth * .5 + rms * .5;
+    micLevel = Math.min(1, smooth * 8); maxRms = Math.max(maxRms, rms);
+    if (now - started < 600) { floor += smooth; floorN++; return; }
+    const noise = floor / Math.max(1, floorN), limit = Math.max(.02, noise * 2.5);
+    sub.textContent = `Te escucho… nivel ${smooth.toFixed(3)} (voz > ${limit.toFixed(3)}) · toca para enviar`;
+    if (smooth > limit) { loudRun++; quietSince = now; if (loudRun >= 3) heard = true; } else loudRun = 0;
+    if ((heard && now - quietSince > 1200) || (!heard && now - started > 8000) || now - started > 20000) stopListening();
   }, 100);
 }
 function stopListening() {

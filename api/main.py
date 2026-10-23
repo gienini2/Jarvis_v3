@@ -57,7 +57,7 @@ app = FastAPI(lifespan=lifespan)
 
 # Rutas que no requieren clave -- liveness check y la pagina de la UI web (solo
 # sirve HTML/JS estatico; /history y /chat que llama la UI SI exigen la clave).
-_PUBLIC_PATHS = {"/health", "/", "/ui"}
+_PUBLIC_PATHS = {"/health", "/", "/ui", "/face"}
 
 
 class ApiKeyMiddleware(BaseHTTPMiddleware):
@@ -128,6 +128,16 @@ def ui_page():
     html = _UI_PATH.read_text(encoding="utf-8")
     html = html.replace('"__JARVIS_KEY__"', json.dumps(settings.JARVIS_API_KEY or ""))
     return HTMLResponse(html)
+
+
+_FACE_PATH = Path(__file__).resolve().parent.parent / "web" / "face.html"
+
+
+@app.get("/face", response_class=HTMLResponse)
+def face_page():
+    """Cara de Jarvis para el movil. HTML estatico SIN la clave: la pide el usuario
+    una vez en el dispositivo (pulsacion larga) y la guarda en el propio movil."""
+    return HTMLResponse(_FACE_PATH.read_text(encoding="utf-8"))
 
 
 @app.get("/commands")

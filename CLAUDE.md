@@ -118,6 +118,19 @@ NO es "Ollama local con fallback a Anthropic". La selección de modelo es
   seguro: va en `http://127.0.0.1:3000/ui`, no por IP de la tailnet (http). Mejora
   futura de voz: ElevenLabs (cloud, API key) o Piper/Kokoro en CPU.
 
+4. **Cara en el móvil** (`web/face.html`, ruta pública `/face`): terminal mínimo con
+   cara animada (ojos/boca/cejas) que reacciona al texto. Tocar = hablar → `/extract`
+   (Whisper) → `/chat` → voz del sistema con labios. Emoción por reglas de emojis y
+   palabras o por etiqueta opcional `[emoción:feliz]` en la respuesta (la API no la
+   emite aún). La clave NO va en el HTML: se pide con pulsación larga y se guarda en
+   el móvil. HTTPS (necesario para el micro) vía `tailscale serve` ya activo:
+   `https://pc-supermolon.taild7b9e6.ts.net` → `127.0.0.1:3000`. Dispositivo: Mi Note
+   10 Lite (`toco`, MIUI 13, bootloader cerrado; LineageOS no lo soporta) en la
+   tailnet como `mi-note-10-lite`, vaciado con `adb pm uninstall --user 0`
+   (lista en `C:\Users\Usuario\android-tools\paquetes_quitados.txt`).
+   OJO: uvicorn escucha en `0.0.0.0:3000` (el relay de Figaro entra por la IP
+   Tailscale), así que el puerto también lo ve la LAN; pendiente limitarlo.
+
 ## Dominios / capacidades
 - **Centro de Mando** (tareas): `connectors/mando_tasks.py` + `mando_sync.py` →
   `mando-api` en Figaro (PM2, `:10003`), fuente `dashboard-data.json`.

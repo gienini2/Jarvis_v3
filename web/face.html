@@ -188,7 +188,7 @@ async function listen() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     say("El micrófono necesita HTTPS. Usa la dirección https de Tailscale.", 9000); return;
   }
-  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } }); }
   catch (e) { emotion = "worried"; emoUntil = Date.now() + 6000; say(`No puedo usar el micrófono (${e.name}). Permite el micro para este sitio en Chrome.`, 15000); return; }
   chunks = []; heard = false;
   rec = new MediaRecorder(stream);
@@ -211,6 +211,7 @@ async function listen() {
     let sum = 0; for (const b of buf) sum += ((b - 128) / 128) ** 2;
     const rms = Math.sqrt(sum / buf.length), now = Date.now();
     micLevel = Math.min(1, rms * 8); maxRms = Math.max(maxRms, rms);
+    sub.textContent = `Te escucho… nivel ${rms.toFixed(3)} · toca de nuevo para enviar`;
     if (rms > .015) { heard = true; quietSince = now; }
     if ((heard && now - quietSince > 1300) || (!heard && now - started > 8000) || now - started > 30000) stopListening();
   }, 100);

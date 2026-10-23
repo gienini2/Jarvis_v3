@@ -9,7 +9,7 @@
 html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:manipulation;-webkit-user-select:none;user-select:none;font-family:system-ui,sans-serif}
 #stage{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
 svg{width:min(94vw,94vh);max-height:76vh;height:auto}
-#sub{color:#9fb3c8;font-size:clamp(14px,3.6vw,22px);text-align:center;padding:0 7vw;min-height:3.4em;max-width:100vw;transition:opacity .8s}
+#sub{white-space:pre-line;color:#9fb3c8;font-size:clamp(14px,3.6vw,22px);text-align:center;padding:0 7vw;min-height:3.4em;max-width:100vw;transition:opacity .8s}
 #dot{position:fixed;top:12px;right:14px;width:10px;height:10px;border-radius:50%;background:#2c2;opacity:.55}
 #dot.off{background:#d33}
 #panel{position:fixed;inset:0;background:rgba(0,0,0,.94);display:none;flex-direction:column;gap:12px;justify-content:center;padding:8vw;color:#dde;font-size:16px}
@@ -148,18 +148,31 @@ async function api(path, body) {
   return r.json();
 }
 
+const BACKEND_TAG = /^\s*(\[[A-Za-z0-9_\- ]{2,24}\]\s*)+/;
+const MAX_SPOKEN = 420, MAX_SHOWN = 320;
+
+function plain(text) {
+  return text.replace(TAG, "").replace(BACKEND_TAG, "").replace(/```[\s\S]*?```/g, " ")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/(enlace|link|url)?\s*:?\s*https?:\/\/\S+/gi, "").replace(/^#{1,6}\s*/gm, "").replace(/\*\*|__|~~|`/g, "")
+    .replace(/^[\s|:\-]+$/gm, "").replace(/^\s*[-*•]\s+/gm, "• ").replace(/\|/g, " ")
+    .replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
+}
 function spokenText(text) {
-  return text.replace(TAG, "").replace(/```[\s\S]*?```/g, ". ").replace(/https?:\/\/\S+/g, " enlace ")
-    .replace(/[*_#`>|]/g, "").replace(/\p{Extended_Pictographic}|️/gu, "").replace(/\s+/g, " ").trim();
+  let s = plain(text).replace(/(enlace|link|url|reuni[oó]n)?\s*:?\s*https?:\/\/\S+/gi, " ").replace(/\b[0-9a-f]{8,}\b/gi, " ")
+    .replace(/\p{Extended_Pictographic}|️/gu, "").replace(/^•\s*/gm, "").replace(/\s*\n\s*/g, ". ")
+    .replace(/\s+([:.,;!?])/g, "$1").replace(/([:;])\s*\./g, "$1").replace(/\.(\s*\.)+/g, ".").replace(/\s+/g, " ").trim();
+  if (s.length <= MAX_SPOKEN) return s;
+  const cut = s.slice(0, MAX_SPOKEN), end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
+  return (end > 120 ? cut.slice(0, end + 1) : cut) + " El resto está en pantalla.";
 }
 function esVoice() {
   const vs = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
   return vs.find((v) => /^es[-_]/i.test(v.lang)) || vs.find((v) => v.lang && v.lang.toLowerCase().startsWith("es")) || null;
 }
 function reply(text) {
-  emotion = emotionOf(text);
-  const shown = text.replace(TAG, "").trim();
-  say(shown.length > 220 ? shown.slice(0, 217) + "…" : shown);
+  emotion = emotionOf(plain(text) + " " + (TAG.exec(text) || [""])[0]);
+  const shown = plain(text);
+  say(shown.length > MAX_SHOWN ? shown.slice(0, MAX_SHOWN - 1) + "…" : shown, 15000);
   const clean = spokenText(text);
   const finish = () => { state = "idle"; emoUntil = Date.now() + 4000; };
   if (!clean || !("speechSynthesis" in window)) { state = "speaking"; setTimeout(finish, Math.min(8000, 800 + clean.length * 45)); return; }
@@ -255,7 +268,11 @@ function onTap() {
 let pressTimer = 0;
 const stage = $("#stage");
 stage.addEventListener("pointerdown", () => { pressTimer = setTimeout(() => { pressTimer = 0; openPanel(); }, 700); });
-stage.addEventListener("pointerup", () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = 0; onTap(); } });
+function goFullscreen() {
+  const root = document.documentElement;
+  if (!document.fullscreenElement && root.requestFullscreen) root.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
+}
+stage.addEventListener("pointerup", () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = 0; goFullscreen(); onTap(); } });
 stage.addEventListener("pointerleave", () => { clearTimeout(pressTimer); pressTimer = 0; });
 
 const panel = $("#panel");
@@ -294,7 +311,7 @@ async function keepAwake() { try { await navigator.wakeLock.request("screen"); }
 keepAwake(); document.addEventListener("visibilitychange", () => { if (!document.hidden) keepAwake(); });
 if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => {};
 if (!store.get("jkey")) say("Mantén pulsada la pantalla para poner la dirección y la clave.", 15000);
-window.jarvisFace = { emotionOf, reply, ask, setState: (s) => { state = s; } };
+window.jarvisFace = { emotionOf, plain, spokenText, reply, ask, setState: (s) => { state = s; } };
 </script>
 </body>
 </html>

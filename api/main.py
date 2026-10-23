@@ -137,7 +137,7 @@ _FACE_PATH = Path(__file__).resolve().parent.parent / "web" / "face.html"
 def face_page():
     """Cara de Jarvis para el movil. HTML estatico SIN la clave: la pide el usuario
     una vez en el dispositivo (pulsacion larga) y la guarda en el propio movil."""
-    return HTMLResponse(_FACE_PATH.read_text(encoding="utf-8"))
+    return HTMLResponse(_FACE_PATH.read_text(encoding="utf-8"), headers={"Cache-Control": "no-store"})
 
 
 @app.get("/commands")

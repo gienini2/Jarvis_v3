@@ -93,7 +93,7 @@ const cur = { eye: 1, ex: 0, ey: 0, bl: 0, br: 0, tilt: 0, smile: .25, w: 1, ope
 function goal(t) {
   const e = EMO[emotion];
   const g = { eye: e.eye, ex: 0, ey: 0, bl: e.bl, br: e.br, tilt: e.tilt, smile: e.smile, w: e.w, open: 0, dim: 1 };
-  if (state === "listening") Object.assign(g, { eye: 1.2, bl: -.3, br: -.3, smile: .05, w: .7 });
+  if (state === "listening") Object.assign(g, { eye: 1.05 + micLevel * .5, bl: -.3, br: -.3, smile: .05, w: .7 });
   else if (state === "thinking") Object.assign(g, { ex: -.5 + Math.sin(t / 700) * .3, ey: -.6, smile: 0, w: .8 });
   else if (state === "speaking") g.open = Math.min(1, .15 + .35 * Math.abs(Math.sin(t / 95)) * (.6 + .4 * Math.sin(t / 430)) + speakPulse);
   else if (state === "sleeping") Object.assign(g, { eye: .06, smile: .15, dim: .3 });
@@ -183,29 +183,35 @@ async function ask(text) {
   }
 }
 
-let rec = null, chunks = [], stream = null, audioCtx = null, meter = 0, heard = false;
+let rec = null, chunks = [], stream = null, audioCtx = null, meter = 0, heard = false, maxRms = 0, micLevel = 0;
 async function listen() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     say("El micrófono necesita HTTPS. Usa la dirección https de Tailscale.", 9000); return;
   }
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-  catch (e) { say("No puedo usar el micrófono: " + e.message, 8000); return; }
+  catch (e) { emotion = "worried"; emoUntil = Date.now() + 6000; say(`No puedo usar el micrófono (${e.name}). Permite el micro para este sitio en Chrome.`, 15000); return; }
   chunks = []; heard = false;
   rec = new MediaRecorder(stream);
   rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
   rec.onstop = onRecorded;
   rec.start();
   state = "listening"; emotion = "neutral";
+  say("Te escucho… toca de nuevo para enviar", 30000);
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  await audioCtx.resume();
   const an = audioCtx.createAnalyser(); an.fftSize = 1024;
+  const sink = audioCtx.createGain(); sink.gain.value = 0;
   audioCtx.createMediaStreamSource(stream).connect(an);
+  an.connect(sink); sink.connect(audioCtx.destination);
   const buf = new Uint8Array(an.fftSize), started = Date.now();
   let quietSince = Date.now();
+  maxRms = 0;
   meter = setInterval(() => {
     an.getByteTimeDomainData(buf);
     let sum = 0; for (const b of buf) sum += ((b - 128) / 128) ** 2;
-    const loud = Math.sqrt(sum / buf.length) > .03, now = Date.now();
-    if (loud) { heard = true; quietSince = now; }
+    const rms = Math.sqrt(sum / buf.length), now = Date.now();
+    micLevel = Math.min(1, rms * 8); maxRms = Math.max(maxRms, rms);
+    if (rms > .015) { heard = true; quietSince = now; }
     if ((heard && now - quietSince > 1300) || (!heard && now - started > 8000) || now - started > 30000) stopListening();
   }, 100);
 }
@@ -216,7 +222,12 @@ function stopListening() {
 async function onRecorded() {
   stream.getTracks().forEach((t) => t.stop());
   if (audioCtx) audioCtx.close();
-  if (!heard || !chunks.length) { state = "idle"; return; }
+  micLevel = 0;
+  if (!heard || !chunks.length) {
+    state = "idle"; emotion = "doubt"; emoUntil = Date.now() + 5000;
+    say(`No te he oído (nivel ${maxRms.toFixed(3)}). Habla más cerca o revisa el permiso del micrófono.`, 12000);
+    return;
+  }
   state = "thinking";
   try {
     const mime = (rec && rec.mimeType) || "audio/webm";

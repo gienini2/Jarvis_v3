@@ -111,9 +111,11 @@
         "list_recent_emails",
         "search_gmail",
         "send_email",
-        "send_telegram_message"
+        "send_telegram_message",
+        "buscar_contacto",
+        "preparar_mensaje"
       ],
-      "prompt": "Enviar correo/Telegram tiene efecto inmediato: reune todo lo necesario (destinatario, asunto, cuerpo) antes de llamar; si falta un dato, preguntalo primero.",
+      "prompt": "Los correos y mensajes a otras personas NO se envian hasta que el usuario conteste 'si': tu solo preparas el borrador y se lo ensenas. Para escribir a alguien de su agenda usa buscar_contacto y luego preparar_mensaje; nunca conoces ni inventes numeros o direcciones. Si hay varios contactos parecidos, pregunta cual. Si falta un dato, preguntalo primero.",
       "examples": [
         "lee mis últimos correos",
         "busca el email de Amazon sobre mi pedido",
@@ -315,6 +317,28 @@
         "recomiéndame una película",
         "busca una receta de tortilla de patatas"
       ]
+    },
+    "contactos": {
+      "tools": [
+        "buscar_contacto",
+        "preparar_mensaje"
+      ],
+      "prompt": "Para mandar un mensaje a alguien de la agenda: buscar_contacto (si hay varios parecidos, pregunta cual), luego preparar_mensaje por 'whatsapp' o 'correo' y ensena el borrador. NO se envia hasta que el usuario conteste 'si'. No conoces numeros ni correos: no los inventes. Si el usuario pide ver un telefono o correo, di que no los manejas y ofrece preparar el mensaje.",
+      "examples": [
+        "mándale un whatsapp a María diciendo que llego tarde",
+        "escribe a Carlos por WhatsApp que ya estoy en camino",
+        "busca el contacto de Pedro",
+        "tengo guardado a Luis el electricista",
+        "avisa a mi hermana de que ya voy",
+        "dile a Ana que mañana no puedo quedar",
+        "envía un mensaje a Marta",
+        "cómo contacto con el fontanero",
+        "pásale un WhatsApp a Juan con la dirección",
+        "quién es Laura en mi agenda",
+        "mándale un correo a Sergio con el presupuesto",
+        "escríbele a mi jefe que mañana llego tarde"
+      ],
+      "hints": "whatsapp|wasap|guasap|\\bcontacto\\b|agenda|m[aá]ndale|escr[ií]bele|d[ií]le a|avisa a"
     }
   },
   "hint_boost": 0.06

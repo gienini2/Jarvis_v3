@@ -308,10 +308,10 @@ TOOLS = [
         "function": {
             "name": "send_email",
             "description": (
-                "Envia un correo real desde Gmail (cuenta jarvis.gienini2.1009@gmail.com). "
-                "Usar solo cuando el usuario pida explicitamente enviar/mandar un correo y "
-                "haya dado destinatario, asunto y cuerpo (si falta algo, preguntalo antes de "
-                "llamar a esta tool, no inventes el contenido)."
+                "Prepara un correo de Gmail (cuenta jarvis.gienini2.1009@gmail.com) a una direccion que el "
+                "usuario te ha dado escrita. NO se envia hasta que el usuario conteste 'si'. Si el destinatario "
+                "es una persona de su agenda, usa buscar_contacto + preparar_mensaje. Si falta destinatario, "
+                "asunto o cuerpo, preguntalo antes; no inventes el contenido."
             ),
             "parameters": {
                 "type": "object",
@@ -582,6 +582,10 @@ TOOLS = [
 # son charla / recuerdo / consulta y no necesitan actuar. Rama LIGERA = lo
 # minimo; si el modelo necesita ACTUAR, llama a 'usar_herramientas' y el agente
 # recarga el set completo (una ronda extra, sin perder capacidad).
+from core.contacts import TOOL_SCHEMAS as _CONTACT_SCHEMAS, buscar_contacto, preparar_correo_directo, preparar_mensaje
+
+TOOLS.extend(_CONTACT_SCHEMAS)
+
 LIGHT_TOOL_NAMES = {"search_memory", "remember", "query_tasks"}
 
 ESCALATE_TOOL = {
@@ -849,10 +853,7 @@ def send_email(to: str, subject: str, body: str) -> dict:
         return {"error": f"'{to}' no parece una direccion de correo valida."}
     if not subject or not body:
         return {"error": "Falta asunto o cuerpo del correo -- no se envia nada a medias."}
-    ok = _send_email(to, subject, body)
-    if not ok:
-        return {"error": "Gmail rechazo el envio -- ver logs de connectors/google_tools.py."}
-    return {"ok": True, "to": to, "subject": subject}
+    return preparar_correo_directo(to, subject, body)
 
 
 def create_calendar_event(summary: str, start: str, end: str = "", description: str = "") -> dict:
@@ -1125,6 +1126,8 @@ FUNCTIONS = {
     "delete_project_tasks": delete_project_tasks,
     "send_telegram_message": send_telegram_message,
     "send_email": send_email,
+    "buscar_contacto": buscar_contacto,
+    "preparar_mensaje": preparar_mensaje,
     "create_calendar_event": create_calendar_event,
     "find_calendar_events": find_calendar_events,
     "delete_calendar_event": delete_calendar_event,

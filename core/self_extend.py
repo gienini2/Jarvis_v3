@@ -169,7 +169,7 @@ SMOKE_FORBIDDEN = {
     "self_extend", "edit_code", "send_email", "send_telegram_message",
     "create_calendar_event", "delete_calendar_event",
     "add_task", "update_task", "complete_task", "delete_task", "delete_project_tasks",
-    "remember", "start_audit", "start_netscan",
+    "remember", "start_audit", "start_netscan", "preparar_mensaje",
 }
 
 

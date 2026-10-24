@@ -49,6 +49,19 @@ def process(message: str) -> tuple[str, str]:
     backend_state.reset()  # nuevo mensaje -> aun no ha respondido ningun backend
     _save_message_safely("user", message)
 
+    # Confirmacion de un borrador de mensaje (core/contacts.py): se resuelve aqui, ANTES del LLM,
+    # para que el modelo no pueda confirmarse a si mismo. Solo responde a un si/no puros.
+    try:
+        from core.contacts import handle_confirmation
+        confirmed = handle_confirmation(message)
+    except Exception as e:
+        log.warning(f"[contacts] confirmacion fallo: {e}")
+        confirmed = None
+    if confirmed:
+        _log_intent_safely(message, "confirmacion", None, executed=True)
+        _save_message_safely("assistant", confirmed)
+        return _tag(confirmed), "confirmacion"
+
     # Alpha50 primero: entreno/rutina, por comando o lenguaje natural, y desde
     # cualquier interfaz (Telegram, Jarvis Chat, relay) — todas pasan por aquí.
     try:

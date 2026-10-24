@@ -21,6 +21,8 @@ svg{width:min(94vw,94vh);max-height:76vh;height:auto}
 body.withDetail #stage{bottom:55vh}
 body.withDetail svg{max-height:30vh}
 body.withDetail #sub{min-height:0}
+#lock{position:fixed;top:8px;left:12px;font-size:20px;display:none;opacity:.85}
+#lock.on{display:block}
 #dot{position:fixed;top:12px;right:14px;width:10px;height:10px;border-radius:50%;background:#2c2;opacity:.55}
 #dot.off{background:#d33}
 #panel{position:fixed;inset:0;background:rgba(0,0,0,.94);display:none;flex-direction:column;gap:12px;justify-content:center;padding:8vw;color:#dde;font-size:16px}
@@ -46,6 +48,7 @@ body.withDetail #sub{min-height:0}
 </div>
 <a id="waBtn" href="#" target="_blank" rel="noopener">📲 Abrir WhatsApp</a>
 <div id="detail"><button id="detailClose" aria-label="Cerrar">✕</button><div id="detailRows"></div></div>
+<div id="lock">🔒</div>
 <div id="dot"></div>
 <div id="panel">
   <label>Dirección de Jarvis <input id="pBase" placeholder="https://tu-pc.tu-tailnet.ts.net"></label>
@@ -197,11 +200,15 @@ async function api(path, body) {
   const headers = { "Content-Type": "application/json" };
   const key = store.get("jkey"); if (key) headers["X-Jarvis-Key"] = key;
   const r = await fetch(base() + path, { method: "POST", headers, body: JSON.stringify(body) });
-  if (!r.ok) throw new Error(r.status === 401 ? "clave incorrecta" : "error " + r.status);
+  if (!r.ok) {
+    let msg = "";
+    try { msg = (await r.json()).error || ""; } catch (e) {}
+    throw new Error(r.status === 401 ? "clave incorrecta" : (msg || "error " + r.status));
+  }
   return r.json();
 }
 
-const BACKEND_TAG = /^\s*(\[[A-Za-z0-9_\- ]{2,24}\]\s*)+/;
+const BACKEND_TAG = /^\s*(\[[^\]\n]{2,28}\]\s*)+/;
 const MAX_SPOKEN = 420, MAX_SHOWN = 320;
 
 function plain(text) {
@@ -278,6 +285,7 @@ function offerWhatsApp(text) {
 }
 
 function reply(text) {
+  $("#lock").classList.toggle("on", /^\s*\[🔒/.test(text));
   offerWhatsApp(text);
   const { prose, details } = splitDetails(text);
   const count = details.reduce((n, t) => n + t.rows.length, 0);

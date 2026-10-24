@@ -145,7 +145,15 @@ def pick(domain_scores: dict[str, float]) -> list[str] | None:
     return chosen
 
 
+_CLOSING = re.compile(
+    r"^\W*(muchas |mil |muchisimas |muchísimas )?(gracias|adi[oó]s|hasta luego|hasta pronto|buenas noches|nos vemos)[\W]*(jarvis)?\W*$",
+    re.IGNORECASE,
+)
+
+
 def route(message: str, previous_user: str = "") -> tuple[list[str], float] | None:
+    if _CLOSING.match(message):
+        return ["charla"], 1.0
     domain_scores = scores(message, previous_user)
     if not domain_scores:
         return None

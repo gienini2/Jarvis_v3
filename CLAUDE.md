@@ -215,6 +215,11 @@ Si un ID configurado desaparece, el modelo deja de servir.
   arquitectura vieja "solo local + Anthropic"; DB puesta como `jarvis_v2`).
 - `POSTGRES_PASSWORD` en texto plano; credenciales Garmin en `.env` en claro.
 - Alpha50: rate-limit 429 de Garmin sin resolver.
+- **Evaluar los modelos locales** (`qwen2.5:7b` vs `dolphin3:8b`, y quiza `llama3.2`/`mistral:7b`, ya instalados) con un script de
+  casos de tool-calling (sin ejecutar nada: herramienta correcta, JSON valido, sin inventar tools, español, latencia) y reordenar
+  el respaldo local en `providers.json`; es el cerebro del modo privado. Pedido por Juan Pablo el 2026-10-27; aun sin hacer.
+- Voz privada: Whisper local (faster-whisper en CPU) para poder hablar en modo privado; opcional, puede chocar con el bloqueo de DLL de Windows.
+- Fase 3 de WhatsApp: resumir un chat y «redactar como yo» con herramientas privadas (todo local).
 - TLS de Fígaro: cert de Tailscale en `/etc/ssl/figaro-server.taild7b9e6.ts.net.crt`,
   servido por nginx (proxy a node `/opt/mando` `:10003`). Auto-renovación por cron
   semanal (`/etc/cron.d/tailscale-cert-renew`). Si falla TLS, revisar ese cron y

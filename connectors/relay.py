@@ -48,6 +48,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
 )
+logging.getLogger("httpx").setLevel(logging.WARNING)
 log = logging.getLogger("relay")
 
 # ---------------------------------------------------------------------------
@@ -205,16 +206,20 @@ telegram_app = None  # se asigna en run_bot() -- /notify reutiliza telegram_app.
 
 async def run_bot():
     global telegram_app
-    telegram_app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    log.info("Bot Telegram iniciado")
-    async with telegram_app:
-        await telegram_app.start()
-        await telegram_app.updater.start_polling(drop_pending_updates=True)
-        # Espera indefinida hasta cancelación
-        await asyncio.Event().wait()
-        await telegram_app.updater.stop()
-        await telegram_app.stop()
+    while True:
+        try:
+            telegram_app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+            telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+            async with telegram_app:
+                await telegram_app.start()
+                await telegram_app.updater.start_polling(drop_pending_updates=True)
+                log.info("Bot Telegram iniciado")
+                await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            log.warning(f"Bot Telegram caido ({e}); reintento en 15s")
+            await asyncio.sleep(15)
 
 # ---------------------------------------------------------------------------
 # FastAPI — endpoints de cola para el PC

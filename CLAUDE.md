@@ -131,6 +131,16 @@ NO es "Ollama local con fallback a Anthropic". La selección de modelo es
    OJO: uvicorn escucha en `0.0.0.0:3000` (el relay de Figaro entra por la IP
    Tailscale), así que el puerto también lo ve la LAN; pendiente limitarlo.
 
+## Privacidad y modo privado (`core/privacy.py`)
+- **Modo privado** (persistente, bandera `data/modo_privado.flag`): `/privado` o «modo privado» lo activa; `/publico` o
+  «modo normal» lo desactiva; `/privado?` informa; `/privado <msg>` o `privado: <msg>` lo aplica a un solo mensaje
+  (el relay de Telegram no reenvia los que empiezan por `/`, usar las palabras). En modo privado el router solo admite
+  proveedores locales (`LOCAL_PROVIDERS = {ollama}`, falla antes que usar la nube), la voz se rechaza (Whisper es Groq) y
+  no se guarda ni el mensaje ni la respuesta (marcadores) en `conversations`, memoria (RAG) ni `intents`. Respuesta con `[🔒 ...]`.
+- **Herramienta privada** (`PRIVATE_TOOLS` o resultado con `"_privado": true`): tras ejecutarla, el resto del turno es local.
+  Contenido de chats de WhatsApp solo debe salir por herramientas privadas (fase 3, aun sin hacer).
+- Otras fugas ya tapadas: los enlaces `wa.me` de las confirmaciones no se guardan en el historial.
+
 ## Dominios / capacidades
 - **Centro de Mando** (tareas): `connectors/mando_tasks.py` + `mando_sync.py` →
   `mando-api` en Figaro (PM2, `:10003`), fuente `dashboard-data.json`.

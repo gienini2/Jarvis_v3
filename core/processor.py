@@ -4,9 +4,10 @@ Logica central de procesamiento de mensajes.
 Usado por los 3 flujos: api/main.py, scripts/chat.py, connectors/relay_client.py
 """
 import logging
+import re
 import threading
 from core.llm import generate
-from core import backend_state
+from core import backend_state, privacy
 from core.memory import save_message as _save_message
 from core.rag import search_memories, store_memory_chunks
 from core.intent import classify, log_intent as _log_intent
@@ -32,6 +33,8 @@ def _save_message_safely(role: str, message: str) -> None:
 
 
 def _log_intent_safely(message: str, intent_type: str, payload=None, executed: bool = False) -> None:
+    if privacy.is_private_turn():
+        message, payload = privacy.PLACEHOLDER_USER, None
     try:
         _log_intent(message, intent_type, payload, executed=executed)
     except Exception as e:
@@ -42,12 +45,63 @@ def _tag(response: str) -> str:
     """Antepone [groq]/[nvidia]/[qwen-local]/[local] segun que IA respondio.
     Se aplica solo al texto que se devuelve al usuario -- la memoria y los logs
     guardan la respuesta limpia."""
-    return f"[{backend_state.get_backend()}] {response}"
+    lock = "🔒 " if privacy.is_private_turn() else ""
+    return f"[{lock}{backend_state.get_backend()}] {response}"
+
+
+def _remember_turn(message: str, response: str) -> None:
+    """Guarda el turno en la memoria (RAG), salvo que sea privado."""
+    if privacy.is_private_turn():
+        return
+    threading.Thread(
+        target=store_memory_chunks,
+        args=(f"user: {message}\nassistant: {response}",),
+        kwargs={"source": "conversation"},
+        daemon=True,
+    ).start()
+
+
+def _save_assistant(response: str) -> None:
+    _save_message_safely("assistant", privacy.PLACEHOLDER if privacy.is_private_turn() else response)
+
+
+_PRIVACY_ON = re.compile(r"^\W*(/privado|modo privado|activa(?:r)? (?:el )?modo privado|ponte en modo privado)\W*$", re.IGNORECASE)
+_PRIVACY_OFF = re.compile(r"^\W*(/p[uú]blico|/privado off|modo normal|modo p[uú]blico|desactiva(?:r)? (?:el )?modo privado|sal(?:ir)? del modo privado)\W*$", re.IGNORECASE)
+_PRIVACY_STATUS = re.compile(r"^\W*(/privado\?|modo privado\?)\W*$", re.IGNORECASE)
+_ONE_SHOT = re.compile(r"^\s*(?:/privado\s+|privado\s*[:,]\s*)(.+)$", re.IGNORECASE | re.DOTALL)
 
 
 def process(message: str) -> tuple[str, str]:
+    """Punto de entrada. Gestiona el modo privado (/privado, /publico) y delega en _process."""
+    privacy.reset()
+    try:
+        if _PRIVACY_STATUS.match(message):
+            text = "🔒 Modo privado ACTIVADO." if privacy.mode_on() else "🔓 Modo privado desactivado."
+        elif _PRIVACY_ON.match(message):
+            privacy.set_mode(True)
+            text = ("🔒 Modo privado activado: todo se procesa solo con el modelo local de tu PC, nada va a la nube y no se guarda en la memoria ni "
+                    "en el historial. La voz no funciona en este modo (la transcripción usa la nube). Para salir: «modo normal» o /publico.")
+        elif _PRIVACY_OFF.match(message):
+            privacy.set_mode(False)
+            text = "🔓 Modo privado desactivado. Vuelvo a usar la nube cuando haga falta."
+        else:
+            text = None
+        if text:
+            return text, "privacidad"
+        one_shot = _ONE_SHOT.match(message)
+        if one_shot:
+            message = one_shot.group(1).strip()
+            privacy.force_local(True)
+        elif privacy.mode_on():
+            privacy.force_local(True)
+        return _process(message)
+    finally:
+        privacy.reset()
+
+
+def _process(message: str) -> tuple[str, str]:
     backend_state.reset()  # nuevo mensaje -> aun no ha respondido ningun backend
-    _save_message_safely("user", message)
+    _save_message_safely("user", privacy.PLACEHOLDER_USER if privacy.is_forced() else message)
 
     # Confirmacion de un borrador de mensaje (core/contacts.py): se resuelve aqui, ANTES del LLM,
     # para que el modelo no pueda confirmarse a si mismo. Solo responde a un si/no puros.
@@ -59,7 +113,7 @@ def process(message: str) -> tuple[str, str]:
         confirmed = None
     if confirmed:
         _log_intent_safely(message, "confirmacion", None, executed=True)
-        _save_message_safely("assistant", confirmed)
+        _save_message_safely("assistant", "[enlace de envio: no se guarda]" if "wa.me" in confirmed else confirmed)
         return _tag(confirmed), "confirmacion"
 
     # Alpha50 primero: entreno/rutina, por comando o lenguaje natural, y desde
@@ -73,12 +127,7 @@ def process(message: str) -> tuple[str, str]:
     if alpha50_resp:
         log.debug("intent=alpha50")
         _log_intent_safely(message, "alpha50", None, executed=True)
-        threading.Thread(
-            target=store_memory_chunks,
-            args=(f"user: {message}\nassistant: {alpha50_resp}",),
-            kwargs={"source": "conversation"},
-            daemon=True,
-        ).start()
+        _remember_turn(message, alpha50_resp)
         return _tag(alpha50_resp), "alpha50"
 
     # Modo codigo explicito: peticiones de "hazme un programa/script/funcion..."
@@ -94,13 +143,8 @@ def process(message: str) -> tuple[str, str]:
     if code_resp:
         log.debug("intent=code")
         _log_intent_safely(message, "code", None, executed=True)
-        _save_message_safely("assistant", code_resp)
-        threading.Thread(
-            target=store_memory_chunks,
-            args=(f"user: {message}\nassistant: {code_resp}",),
-            kwargs={"source": "conversation"},
-            daemon=True,
-        ).start()
+        _save_assistant(code_resp)
+        _remember_turn(message, code_resp)
         return _tag(code_resp), "code"
 
     # ------------------------------------------------------------------
@@ -115,14 +159,9 @@ def process(message: str) -> tuple[str, str]:
     try:
         from core.agent import run as agent_run
         response = agent_run(message)
-        _log_intent_safely(message, "agent", None, executed=True)
-        _save_message_safely("assistant", response)
-        threading.Thread(
-            target=store_memory_chunks,
-            args=(f"user: {message}\nassistant: {response}",),
-            kwargs={"source": "conversation"},
-            daemon=True,
-        ).start()
+        _log_intent_safely(message, "agent_privado" if privacy.is_private_turn() else "agent", None, executed=True)
+        _save_assistant(response)
+        _remember_turn(message, response)
         return _tag(response), "agent"
     except Exception as e:
         log.warning(f"[agent] fallo, cayendo al clasificador de intents (fallback): {e}")
@@ -181,14 +220,9 @@ def process(message: str) -> tuple[str, str]:
             log.info(f"[RAG] {len(memories)} memorias encontradas (top sim={memories[0]['similarity']:.2f})")
         response = generate(message, rag_memories=memories if memories else None, intent=intent.type)
         _log_intent_safely(message, intent.type, intent.payload or None)
-        _save_message_safely("assistant", response)
+        _save_assistant(response)
 
-    threading.Thread(
-        target=store_memory_chunks,
-        args=(f"user: {message}\nassistant: {response}",),
-        kwargs={"source": "conversation"},
-        daemon=True,
-    ).start()
+    _remember_turn(message, response)
 
     return _tag(response), intent.type
 

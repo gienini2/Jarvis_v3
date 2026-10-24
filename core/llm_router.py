@@ -6,6 +6,7 @@ from pathlib import Path
 import requests
 
 from core import llm_stats
+from core.privacy import LOCAL_PROVIDERS, is_forced
 from core.backend_state import set_backend
 from core.llm_health import health_manager
 from core.llm_types import LLMRequest, LLMResponse
@@ -67,6 +68,8 @@ def _requirements_from_request(request: LLMRequest) -> dict:
         requirements["role"] = "tools"
         requirements.update(role_defaults.get("tools", {}))
     requirements.update(explicit)
+    if is_forced():
+        requirements["local_only"] = True
     if getattr(request, "images", None):
         # Con imagen adjunta forzamos un modelo con vision (rol 'vision') y sin
         # tools: manda el contenido visual por encima del rol que tocara por intent.
@@ -106,6 +109,8 @@ def _score(provider_name: str, provider_config: dict, model_config: dict, requir
 def _discard_reason(provider_name: str, provider_config: dict, model_config: dict, requirements: dict, ignore_health: bool = False) -> str:
     if not provider_config.get("enabled", False):
         return "proveedor deshabilitado"
+    if requirements.get("local_only") and provider_name not in LOCAL_PROVIDERS:
+        return "contenido privado: solo modelos locales"
     if provider_name not in PROVIDERS:
         return "proveedor sin implementacion"
     if not ignore_health and not health_manager.is_online(provider_name):

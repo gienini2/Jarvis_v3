@@ -227,7 +227,11 @@ def extract(req: ExtractRequest):
     bytes binarios en el prompt (el LLM respondia describiendo la estructura del
     PDF en vez de leer su contenido). Requiere X-Jarvis-Key como el resto."""
     import base64
+    from core import privacy
     from core.attachments import extract_text, UnsupportedAttachment
+    privacy.reset()
+    if privacy.mode_on():
+        privacy.force_local(True)   # las imagenes usan el modelo de vision local; el audio se rechaza (Whisper es nube)
     try:
         data = base64.b64decode(req.content_b64)
     except Exception:
@@ -249,7 +253,11 @@ def chat_agent(req: ChatRequest):
     si sustituye al clasificador de core/intent.py. Usa NVIDIA (llama-3.3-70b-instruct)
     como motor de decision, con fallback a qwen2.5 local si no hay internet.
     """
+    from core import privacy
     from core.mando_intents import handle_mando
+    privacy.reset()
+    if privacy.mode_on():
+        privacy.force_local(True)
     reply = handle_mando(req.message)
     if reply is not None:
         return reply   # adapta al formato de respuesta actual del endpoint

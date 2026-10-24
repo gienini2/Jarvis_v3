@@ -10,7 +10,7 @@ from config.settings import settings
 from core.llm_types import LLMRequest
 from core import domains
 from core import llm_router as router
-from core import llm_stats
+from core import llm_stats, privacy
 from core.tools import TOOLS, call_tool, light_tools
 
 log = logging.getLogger("jarvis.agent")
@@ -143,7 +143,12 @@ def run(user_prompt: str) -> str:
         llm_stats.record_turn(turn, time.monotonic() - started)
 
 
+def _request(messages: list, tools: list, private: bool) -> LLMRequest:
+    return LLMRequest(prompt=messages, tools=tools, requirements={"local_only": True} if private else None)
+
+
 def _run(user_prompt: str, turn: dict) -> str:
+    private = privacy.is_forced()
     """
     Loop de tool-calling. Devuelve la respuesta final en texto plano.
     """
@@ -162,7 +167,7 @@ def _run(user_prompt: str, turn: dict) -> str:
     executed = turn["tools"]
     for round_n in range(MAX_TOOL_ROUNDS):
         turn["rounds"] = round_n + 1
-        message = router.chat_tools(LLMRequest(prompt=messages, tools=tools))
+        message = router.chat_tools(_request(messages, tools, private))
         tool_calls = message.get("tool_calls")
 
         if not tool_calls:
@@ -211,9 +216,15 @@ def _run(user_prompt: str, turn: dict) -> str:
             result = call_tool(fn_name, args)
             turn["tool_s"] += time.monotonic() - tool_started
             executed.append(fn_name)
+            limit = MAX_TOOL_RESULT_CHARS
+            if privacy.is_private(fn_name, result):
+                private = True
+                privacy.mark_private()
+                turn["private"] = True
+                limit = privacy.MAX_PRIVATE_RESULT_CHARS
             content = json.dumps(result, ensure_ascii=False, default=str)
-            if len(content) > MAX_TOOL_RESULT_CHARS:
-                content = content[:MAX_TOOL_RESULT_CHARS] + " …(resultado truncado)"
+            if len(content) > limit:
+                content = content[:limit] + " …(resultado truncado)"
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc["id"],
@@ -224,7 +235,7 @@ def _run(user_prompt: str, turn: dict) -> str:
     # todo lo recogido, una llamada final para que el modelo redacte la
     # respuesta con los resultados que ya tiene en `messages`.
     try:
-        final = router.chat_tools(LLMRequest(prompt=messages, tools=tools))
+        final = router.chat_tools(_request(messages, tools, private))
         content = final.get("content")
         if content:
             return content

@@ -24,6 +24,9 @@ _URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 def transcribe(data: bytes, filename: str = "audio.ogg", language: str | None = "es") -> str:
     """Devuelve el texto transcrito. `language` fija el idioma (mejora la precision
     en audios cortos); None deja que Whisper lo autodetecte. Lanza si falla la API."""
+    from core import privacy
+    if privacy.is_forced() or privacy.mode_on():
+        raise RuntimeError("Modo privado: la transcripcion de voz usa la nube (Groq); escribe el mensaje o desactiva el modo con /publico.")
     if not settings.GROQ_API_KEY:
         raise RuntimeError("GROQ_API_KEY no configurada; no puedo transcribir audio.")
 

@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     # Google
     GOOGLE_CREDENTIALS_FILE: str = "config/google_credentials.json"
     GOOGLE_TOKEN_FILE: str = "config/google_token.json"
+    # Autorizacion aparte con la cuenta PERSONAL del usuario, solo para enviar correo desde ella
+    # (scope gmail.send): scripts/google_autorizar_usuario.py. Sin ella, send_email falla con un
+    # mensaje claro en vez de enviar desde la cuenta de Jarvis, salvo GOOGLE_EMAIL_FALLBACK_JARVIS=true.
+    GOOGLE_USER_TOKEN_FILE: str = "config/google_user_token.json"
+    GOOGLE_USER_EMAIL: str = "gienini2@gmail.com"
+    GOOGLE_EMAIL_FALLBACK_JARVIS: bool = False
     # Calendario destino de escritura. La cuenta autenticada es
     # jarvis.gienini2.1009 pero los eventos deben caer en el calendario
     # personal de Juanpa (compartido con permiso de escritura). "primary"

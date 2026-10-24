@@ -52,10 +52,44 @@ def get_recent_emails(max_results: int = 10) -> list[dict]:
     return emails
 
 
+USER_SCOPES = [
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "openid",
+]
+
+
+def _user_gmail_service():
+    """Gmail de la cuenta personal del usuario (solo enviar). None si aun no esta autorizada."""
+    path = settings.GOOGLE_USER_TOKEN_FILE
+    if not os.path.exists(path):
+        return None
+    creds = Credentials.from_authorized_user_file(path, USER_SCOPES)
+    if not creds.valid:
+        if not (creds.expired and creds.refresh_token):
+            return None
+        try:
+            creds.refresh(Request())
+        except Exception as e:
+            raise RuntimeError(
+                "La autorizacion de tu Gmail ha caducado o se ha revocado: vuelve a ejecutar scripts/google_autorizar_usuario.py"
+            ) from e
+        with open(path, "w") as token:
+            token.write(creds.to_json())
+    return build("gmail", "v1", credentials=creds)
+
+
 def send_email(to: str, subject: str, body: str) -> bool:
     import base64
     from email.mime.text import MIMEText
-    service = get_google_service("gmail", "v1")
+    service = _user_gmail_service()
+    if service is None:
+        if not settings.GOOGLE_EMAIL_FALLBACK_JARVIS:
+            raise RuntimeError(
+                "Tu Gmail aun no esta autorizado para enviar: ejecuta scripts/google_autorizar_usuario.py "
+                "(o pon GOOGLE_EMAIL_FALLBACK_JARVIS=true para enviar desde la cuenta de Jarvis)."
+            )
+        service = get_google_service("gmail", "v1")
     message = MIMEText(body)
     message["to"] = to
     message["subject"] = subject

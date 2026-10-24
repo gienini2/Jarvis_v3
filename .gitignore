@@ -46,3 +46,4 @@ data/massive_cases.json
 
 # Contactos personales: nunca al repositorio
 data/contactos_*
+config/google_user_token.json

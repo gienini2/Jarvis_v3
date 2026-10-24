@@ -40,10 +40,10 @@ def run_import(folder, *extra):
 
 
 ids = []
-for name in ("ZZ Prueba Alfa", "ZZ Prueba Beta"):
+for name in ("ZZ Prueba Alfa", "ZZ Prueba Beta", "ZZ Prueba Gamma"):
     cid = db("INSERT INTO contactos (nombre, busqueda) VALUES (%s, %s) RETURNING id", (name, name.lower()))[0][0]
     ids.append(cid)
-alfa, beta = ids
+alfa, beta, gamma = ids
 had_unassigned = (ROOT / "data" / "whatsapp_sin_asignar.csv").exists()
 
 android = (
@@ -55,10 +55,12 @@ android = (
     "3/12/25, 11:13 - ZZ Prueba Alfa: perfecto\n"
 )
 ios = (
-    "‎[24/10/2026, 21:05:12] ZZ Prueba Beta: buenas tardes\n"
-    "[24/10/2026, 21:06:01] Yo Mismo: ¡hola! ¿qué tal?\n"
-    "[24/10/2026, 9:07:30 p. m.] ZZ Prueba Beta: bien, gracias\n"
+    "‎[24/09/2026, 21:05:12] ZZ Prueba Beta: buenas tardes\n"
+    "[24/09/2026, 21:06:01] Yo Mismo: ¡hola! ¿qué tal?\n"
+    "[24/09/2026, 9:07:30 p. m.] ZZ Prueba Beta: bien, gracias\n"
 )
+us = ("[9/24/2026, 9:07:30 PM] ZZ Prueba Gamma: hello\n[9/25/2026, 8:15:00 AM] Yo Mismo: hi there\n"
+      "[9/26/2026, 11:59:59 PM] ZZ Prueba Gamma: good night\n")
 group = "1/1/26, 10:00 - Ana: hola\n1/1/26, 10:01 - Luis: buenas\n1/1/26, 10:02 - Yo Mismo: qué tal\n"
 
 with tempfile.TemporaryDirectory() as tmp:
@@ -66,13 +68,15 @@ with tempfile.TemporaryDirectory() as tmp:
     (folder / "Xat de WhatsApp amb ZZ Prueba Alfa.txt").write_text(android, encoding="utf-8")
     with zipfile.ZipFile(folder / "WhatsApp Chat - ZZ Prueba Beta.zip", "w") as z:
         z.writestr("_chat.txt", ios)
+    with zipfile.ZipFile(folder / "WhatsApp Chat - ZZ Prueba Gamma.zip", "w") as z:
+        z.writestr("_chat.txt", us)
     (folder / "Chat de WhatsApp con Familia Grupo.txt").write_text(group, encoding="utf-8")
     (folder / "Chat de WhatsApp con Qwerty Desconocido Zzz.txt").write_text(android, encoding="utf-8")
 
     print("Importacion")
     out = run_import(folder, "--yo", "Yo Mismo")
-    check("lee los 4 chats, omite 1 grupo y deja 1 sin asignar", "chats leidos: 4" in out and "grupos omitidos: 1" in out and "sin asignar: 1" in out)
-    check("cuenta 8 mensajes (5 Android + 3 iPhone), 2 multimedia", "mensajes: 8 (multimedia 2)" in out and "nuevos en BD: 8" in out)
+    check("lee los 5 chats, omite 1 grupo y deja 1 sin asignar", "chats leidos: 5" in out and "grupos omitidos: 1" in out and "sin asignar: 1" in out)
+    check("cuenta 11 mensajes (5 Android + 3 iPhone + 3 formato EE.UU.), 2 multimedia", "mensajes: 11 (multimedia 2)" in out and "nuevos en BD: 11" in out)
     rows = db("SELECT de_mi, es_multimedia, texto FROM mensajes_chat WHERE contacto_id = %s ORDER BY fecha, id", (alfa,))
     check("Android: 5 mensajes de Alfa (el aviso del sistema no cuenta)", len(rows) == 5)
     check("de_mi correcto (los 'Yo Mismo' son mios, los de Alfa no)", [r[0] for r in rows].count(True) == 2)
@@ -82,6 +86,10 @@ with tempfile.TemporaryDirectory() as tmp:
     rows_b = db("SELECT fecha, de_mi FROM mensajes_chat WHERE contacto_id = %s ORDER BY fecha", (beta,))
     check("iPhone .zip: 3 mensajes y la hora p. m. se convierte a 21:07", len(rows_b) == 3 and rows_b[-1][0].hour == 21 and rows_b[-1][0].minute == 7)
     out2 = run_import(folder, "--yo", "Yo Mismo")
+    rows_g = db("SELECT fecha FROM mensajes_chat WHERE contacto_id = %s ORDER BY fecha", (gamma,))
+    check("formato mes/dia: no se descarta ningun mensaje (dia 24/25/26) y las fechas son correctas",
+          len(rows_g) == 3 and rows_g[0][0].month == 9 and rows_g[0][0].day == 24 and rows_g[2][0].hour == 23 and "descartadas: 0" in out)
+    check("ninguna fecha cae en el futuro", db("SELECT count(*) FROM mensajes_chat WHERE contacto_id = ANY(%s) AND fecha > now()", (ids,))[0][0] == 0)
     check("reimportar no duplica (0 nuevos)", "nuevos en BD: 0" in out2)
     check("los chats sin asignar quedan en un CSV para resolverlos", (ROOT / "data" / "whatsapp_sin_asignar.csv").exists())
 

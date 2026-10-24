@@ -52,8 +52,9 @@ def norm(text: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", " ", text.lower())).strip()
 
 
-def parse_when(date_s: str, time_s: str, pm: str | None) -> datetime | None:
-    d, m, y = (int(x) for x in date_s.split("/"))
+def parse_when(date_s: str, time_s: str, pm: str | None, order: str = "dm") -> datetime | None:
+    a, b, y = (int(x) for x in date_s.split("/"))
+    d, m = (a, b) if order == "dm" else (b, a)
     y += 2000 if y < 100 else 0
     parts = [int(x) for x in time_s.split(":")]
     h, mi, s = parts[0], parts[1], parts[2] if len(parts) > 2 else 0
@@ -65,13 +66,34 @@ def parse_when(date_s: str, time_s: str, pm: str | None) -> datetime | None:
         return None
 
 
-def parse_chat(text: str) -> list[dict]:
+def detect_order(text: str) -> str | None:
+    """'dm' (dia/mes) o 'md' (mes/dia) segun el chat; None si todas las fechas son ambiguas (dia <= 12)."""
+    firsts, seconds = [], []
+    for raw in text.splitlines():
+        m = START.match(raw.translate(INVISIBLE).strip())
+        if m:
+            parts = (m.group("d1") or m.group("d2")).split("/")
+            firsts.append(int(parts[0]))
+            seconds.append(int(parts[1]))
+    if not firsts:
+        return None
+    if max(firsts) > 12 and max(seconds) <= 12:
+        return "dm"
+    if max(seconds) > 12 and max(firsts) <= 12:
+        return "md"
+    return None
+
+
+def parse_chat(text: str, order: str = "dm") -> tuple[list[dict], int]:
+    """Devuelve (mensajes, lineas con fecha imposible descartadas)."""
+    dropped = 0
     messages = []
     for raw in text.replace("\r\n", "\n").split("\n"):
         line = raw.translate(INVISIBLE).strip()
         m = START.match(line)
         if m:
-            when = parse_when(m.group("d1") or m.group("d2"), m.group("t1") or m.group("t2"), m.group("p1") or m.group("p2"))
+            when = parse_when(m.group("d1") or m.group("d2"), m.group("t1") or m.group("t2"), m.group("p1") or m.group("p2"), order)
+            dropped += when is None
             rest = m.group("rest")
             sender, sep, body = rest.partition(": ")
             if when and sep and 0 < len(sender) <= 60:
@@ -80,7 +102,7 @@ def parse_chat(text: str) -> list[dict]:
                 messages.append({"when": when, "sender": None, "text": rest.strip()})
         elif messages and raw.strip():
             messages[-1]["text"] += "\n" + line.strip()
-    return [x for x in messages if x["when"] and x["sender"] is not None]
+    return [x for x in messages if x["when"] and x["sender"] is not None], dropped
 
 
 def chat_title(path: Path) -> str:
@@ -102,9 +124,21 @@ def read_exports(paths: list[Path]):
                 yield chat_title(f), f.read_text(encoding="utf-8", errors="replace")
 
 
+def global_me(chats: list[tuple[str, list[dict]]]) -> str | None:
+    """Tu nombre en WhatsApp: el que aparece en mas chats (tu estas en todos los tuyos)."""
+    counts: dict[str, int] = {}
+    for _, messages in chats:
+        for name in {m["sender"] for m in messages}:
+            counts[norm(name)] = counts.get(norm(name), 0) + 1
+    if not counts:
+        return None
+    name, n = max(counts.items(), key=lambda kv: kv[1])
+    return name if n >= 3 and n >= .6 * len(chats) else None
+
+
 def who_is_me(title: str, senders: set[str], forced: str | None) -> set[str]:
     if forced:
-        return {s for s in senders if norm(s) == norm(forced)}
+        return {s for s in senders if norm(s) == norm(forced)} or who_is_me(title, senders, None)
     if len(senders) == 1:
         only = next(iter(senders))
         return set() if difflib.SequenceMatcher(None, norm(title), norm(only)).ratio() >= .6 else {only}
@@ -127,7 +161,7 @@ def assign_contact(title: str, mapping: dict[str, int]):
     strong = [f for f in found if f["coincidencia"] >= .85]
     if strong and (len(strong) == 1 or strong[0]["coincidencia"] - strong[1]["coincidencia"] >= .1):
         return strong[0]["id"], []
-    return None, [f["id"] for f in found[:3]]
+    return None, [f'{f["id"]}: {f["nombre"]}' for f in found[:4]]
 
 
 def main():
@@ -147,9 +181,27 @@ def main():
     mapping = load_mapping()
     stats = {"chats": 0, "grupos": 0, "sin_asignar": 0, "mensajes": 0, "nuevos": 0, "multimedia": 0}
     unassigned = []
-    for title, text in read_exports(paths):
+    raw_chats = list(read_exports(paths))
+    orders = [detect_order(text) for _, text in raw_chats]
+    known = [o for o in orders if o]
+    default_order = "md" if known.count("md") > known.count("dm") else "dm"
+    chats, dropped_dates, now = [], 0, datetime.now()
+    for (title, text), order in zip(raw_chats, orders):
+        if order is None:
+            other = "md" if default_order == "dm" else "dm"
+            order = default_order
+            latest = max((m["when"] for m in parse_chat(text, default_order)[0]), default=None)
+            if latest and (latest - now).days >= 1:
+                alt = max((m["when"] for m in parse_chat(text, other)[0]), default=None)
+                if alt and (alt - now).days < 1:
+                    order = other
+        messages, dropped = parse_chat(text, order)
+        chats.append((title, messages))
+        dropped_dates += dropped
+    forced_me = forced_me or global_me([c for c in chats if len({m["sender"] for m in c[1]}) <= 2])
+    stats["yo_detectado_en"] = 0
+    for title, messages in chats:
         stats["chats"] += 1
-        messages = parse_chat(text)
         senders = {m["sender"] for m in messages}
         if len(senders) > 2 or not messages:
             stats["grupos"] += 1
@@ -157,9 +209,10 @@ def main():
         contact_id, candidates = assign_contact(title, mapping)
         if contact_id is None:
             stats["sin_asignar"] += 1
-            unassigned.append((title, ",".join(map(str, candidates))))
+            unassigned.append((title, " | ".join(candidates)))
             continue
         me = who_is_me(title, senders, forced_me)
+        stats["yo_detectado_en"] += bool(forced_me and any(norm(x) == norm(forced_me) for x in me))
         rows = [(contact_id, "whatsapp", m["when"], m["sender"] in me, m["text"], bool(MEDIA.search(m["text"]))) for m in messages]
         stats["mensajes"] += len(rows)
         stats["multimedia"] += sum(1 for r in rows if r[5])
@@ -177,12 +230,14 @@ def main():
         UNASSIGNED.parent.mkdir(exist_ok=True)
         with UNASSIGNED.open("w", encoding="utf-8-sig", newline="") as fh:
             writer = csv.writer(fh)
-            writer.writerow(["chat", "contacto_id", "candidatos (ids)"])
+            writer.writerow(["chat", "contacto_id", "candidatos (id: nombre)"])
             writer.writerows([(t, "", c) for t, c in unassigned])
     cur.close()
     conn.close()
     print(("SIMULACION " if simulate else "") + f"chats leidos: {stats['chats']} | grupos omitidos: {stats['grupos']} | sin asignar: {stats['sin_asignar']}"
-          f" | mensajes: {stats['mensajes']} (multimedia {stats['multimedia']}) | nuevos en BD: {stats['nuevos']}")
+          f" | mensajes: {stats['mensajes']} (multimedia {stats['multimedia']}) | nuevos en BD: {stats['nuevos']}"
+          f" | 'yo' identificado en {stats['yo_detectado_en']} chats"
+          f" | formato de fecha: {'mes/dia' if default_order == 'md' else 'dia/mes'} | lineas con fecha imposible descartadas: {dropped_dates}")
     if unassigned:
         print(f"Asigna los chats sin contacto en {MAPPING.name} (copia {UNASSIGNED.name}, rellena contacto_id y renombra).")
 

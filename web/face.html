@@ -10,6 +10,15 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:mani
 #stage{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
 svg{width:min(94vw,94vh);max-height:76vh;height:auto}
 #sub{white-space:pre-line;color:#9fb3c8;font-size:clamp(14px,3.6vw,22px);text-align:center;padding:0 7vw;min-height:3.4em;max-width:100vw;transition:opacity .8s}
+#detail{position:fixed;left:0;right:0;bottom:0;max-height:55vh;overflow:auto;background:rgba(7,15,24,.97);border-top:1px solid #234;display:none;padding:6px 14px 18px;-webkit-user-select:text;user-select:text}
+#detail.on{display:block}
+#detailClose{position:sticky;top:0;float:right;background:#134;color:#eef;border:1px solid #345;border-radius:8px;font-size:18px;padding:4px 12px}
+.row{padding:9px 0;border-bottom:1px solid #1b2b3a;color:#dbe7f3}
+.row .main{font-size:17px;font-weight:600}
+.row .sub{font-size:14px;color:#9fb3c8;margin-top:2px}
+body.withDetail #stage{bottom:55vh}
+body.withDetail svg{max-height:30vh}
+body.withDetail #sub{min-height:0}
 #dot{position:fixed;top:12px;right:14px;width:10px;height:10px;border-radius:50%;background:#2c2;opacity:.55}
 #dot.off{background:#d33}
 #panel{position:fixed;inset:0;background:rgba(0,0,0,.94);display:none;flex-direction:column;gap:12px;justify-content:center;padding:8vw;color:#dde;font-size:16px}
@@ -31,6 +40,7 @@ svg{width:min(94vw,94vh);max-height:76vh;height:auto}
   </svg>
   <div id="sub"></div>
 </div>
+<div id="detail"><button id="detailClose" aria-label="Cerrar">✕</button><div id="detailRows"></div></div>
 <div id="dot"></div>
 <div id="panel">
   <label>Dirección de Jarvis <input id="pBase" placeholder="https://tu-pc.tu-tailnet.ts.net"></label>
@@ -169,11 +179,62 @@ function esVoice() {
   const vs = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
   return vs.find((v) => /^es[-_]/i.test(v.lang)) || vs.find((v) => v.lang && v.lang.toLowerCase().startsWith("es")) || null;
 }
+const isTableRow = (l) => /^\s*\|.*\|\s*$/.test(l);
+const isBullet = (l) => /^\s*([-*•]|\d+[.)])\s+\S/.test(l);
+const cells = (l) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim().replace(/\*\*|`/g, ""));
+
+function splitDetails(text) {
+  const lines = text.replace(TAG, "").replace(BACKEND_TAG, "").split("\n"), keep = [], details = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (isTableRow(lines[i]) && i + 1 < lines.length && isTableRow(lines[i + 1]) && /^[\s|:\-]+$/.test(lines[i + 1])) {
+      const headers = cells(lines[i]), rows = [];
+      i += 2;
+      while (i < lines.length && isTableRow(lines[i])) rows.push(cells(lines[i++]));
+      i--;
+      details.push({ headers, rows });
+    } else if (isBullet(lines[i])) {
+      const start = i, items = [];
+      while (i < lines.length && isBullet(lines[i])) items.push([lines[i++].replace(/^\s*([-*•]|\d+[.)])\s+/, "").replace(/\*\*|`/g, "")]);
+      i--;
+      if (items.length >= 4) details.push({ headers: [], rows: items });
+      else keep.push(...lines.slice(start, i + 1));
+    } else keep.push(lines[i]);
+  }
+  return { prose: keep.join("\n"), details };
+}
+
+const detailBox = $("#detail"), detailRows = $("#detailRows");
+let detailTimer = 0;
+function hideDetail() { detailBox.classList.remove("on"); document.body.classList.remove("withDetail"); clearTimeout(detailTimer); }
+function showDetail(details) {
+  detailRows.textContent = "";
+  for (const t of details) for (const row of t.rows) {
+    const div = document.createElement("div"); div.className = "row";
+    row.forEach((cell, i) => {
+      const part = document.createElement("div"); part.className = i === 0 ? "main" : "sub";
+      part.textContent = (i > 0 && t.headers[i] ? t.headers[i] + ": " : "") + cell;
+      div.appendChild(part);
+    });
+    detailRows.appendChild(div);
+  }
+  detailBox.classList.add("on"); document.body.classList.add("withDetail");
+  detailBox.scrollTop = 0; clearTimeout(detailTimer); detailTimer = setTimeout(hideDetail, 120000);
+}
+$("#detailClose").onclick = hideDetail;
+
 function reply(text) {
-  emotion = emotionOf(plain(text) + " " + (TAG.exec(text) || [""])[0]);
-  const shown = plain(text);
+  const { prose, details } = splitDetails(text);
+  const count = details.reduce((n, t) => n + t.rows.length, 0);
+  emotion = emotionOf(plain(prose) + " " + (TAG.exec(text) || [""])[0]);
+  if (count) showDetail(details); else hideDetail();
+  const intro = plain(prose);
+  const shown = intro || (count ? "Aquí tienes los resultados." : "");
   say(shown.length > MAX_SHOWN ? shown.slice(0, MAX_SHOWN - 1) + "…" : shown, 15000);
-  const clean = spokenText(text);
+  let clean = spokenText(prose);
+  if (count) {
+    const firsts = details[0].rows.map((r) => r[0]).filter(Boolean);
+    clean += count <= 3 && firsts.length ? ` Son: ${firsts.join(", ")}.` : ` Te dejo ${count} resultados en pantalla.`;
+  }
   const finish = () => { state = "idle"; emoUntil = Date.now() + 4000; };
   if (!clean || !("speechSynthesis" in window)) { state = "speaking"; setTimeout(finish, Math.min(8000, 800 + clean.length * 45)); return; }
   speechSynthesis.cancel();
@@ -208,7 +269,7 @@ async function listen() {
   rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
   rec.onstop = onRecorded;
   rec.start();
-  state = "listening"; emotion = "neutral";
+  state = "listening"; emotion = "neutral"; hideDetail();
   say("Te escucho… toca de nuevo para enviar", 30000);
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   await audioCtx.resume();
@@ -314,7 +375,7 @@ async function keepAwake() { try { await navigator.wakeLock.request("screen"); }
 keepAwake(); document.addEventListener("visibilitychange", () => { if (!document.hidden) keepAwake(); });
 if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => {};
 if (!store.get("jkey")) say("Mantén pulsada la pantalla para poner la dirección y la clave.", 15000);
-window.jarvisFace = { emotionOf, plain, spokenText, reply, ask, setState: (s) => { state = s; } };
+window.jarvisFace = { emotionOf, plain, spokenText, splitDetails, reply, ask, setState: (s) => { state = s; } };
 </script>
 </body>
 </html>

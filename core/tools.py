@@ -582,7 +582,8 @@ TOOLS = [
 # son charla / recuerdo / consulta y no necesitan actuar. Rama LIGERA = lo
 # minimo; si el modelo necesita ACTUAR, llama a 'usar_herramientas' y el agente
 # recarga el set completo (una ronda extra, sin perder capacidad).
-from core.contacts import TOOL_SCHEMAS as _CONTACT_SCHEMAS, buscar_contacto, preparar_correo_directo, preparar_mensaje
+from core.contacts import (TOOL_SCHEMAS as _CONTACT_SCHEMAS, buscar_contacto, contactos_sin_hablar, preparar_correo_directo,
+                           preparar_mensaje, ultimo_contacto)
 
 TOOLS.extend(_CONTACT_SCHEMAS)
 
@@ -1128,6 +1129,8 @@ FUNCTIONS = {
     "send_email": send_email,
     "buscar_contacto": buscar_contacto,
     "preparar_mensaje": preparar_mensaje,
+    "ultimo_contacto": ultimo_contacto,
+    "contactos_sin_hablar": contactos_sin_hablar,
     "create_calendar_event": create_calendar_event,
     "find_calendar_events": find_calendar_events,
     "delete_calendar_event": delete_calendar_event,

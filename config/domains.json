@@ -321,9 +321,11 @@
     "contactos": {
       "tools": [
         "buscar_contacto",
-        "preparar_mensaje"
+        "preparar_mensaje",
+        "ultimo_contacto",
+        "contactos_sin_hablar"
       ],
-      "prompt": "Para mandar un mensaje a alguien de la agenda: buscar_contacto (si hay varios parecidos, pregunta cual), luego preparar_mensaje por 'whatsapp' o 'correo' y ensena el borrador. NO se envia hasta que el usuario conteste 'si'. No conoces numeros ni correos: no los inventes. Si el usuario pide ver un telefono o correo, di que no los manejas y ofrece preparar el mensaje.",
+      "prompt": "Para mandar un mensaje a alguien de la agenda: buscar_contacto (si hay varios parecidos, pregunta cual), luego preparar_mensaje por 'whatsapp' o 'correo' y ensena el borrador. NO se envia hasta que el usuario conteste 'si'. No conoces numeros ni correos: no los inventes. Si el usuario pide ver un telefono o correo, di que no los manejas y ofrece preparar el mensaje. Para saber cuando hablaste con alguien o con quien llevas tiempo sin hablar usa ultimo_contacto / contactos_sin_hablar (solo dan fechas, nunca el contenido de los chats).",
       "examples": [
         "mándale un whatsapp a María diciendo que llego tarde",
         "escribe a Carlos por WhatsApp que ya estoy en camino",
@@ -336,9 +338,15 @@
         "pásale un WhatsApp a Juan con la dirección",
         "quién es Laura en mi agenda",
         "mándale un correo a Sergio con el presupuesto",
-        "escríbele a mi jefe que mañana llego tarde"
+        "escríbele a mi jefe que mañana llego tarde",
+        "cuándo hablé por última vez con Marta",
+        "con quién llevo tiempo sin hablar",
+        "hace cuánto que no hablo con Pedro",
+        "a quién debería escribir hoy",
+        "quién me escribió lo último",
+        "cuánto hablamos Luis y yo"
       ],
-      "hints": "whatsapp|wasap|guasap|\\bcontacto\\b|agenda|m[aá]ndale|escr[ií]bele|d[ií]le a|avisa a"
+      "hints": "whatsapp|wasap|guasap|\\bcontacto\\b|agenda|m[aá]ndale|escr[ií]bele|d[ií]le a|avisa a|[uú]ltima vez|sin hablar|hablado con|hablo con"
     }
   },
   "hint_boost": 0.06

@@ -171,6 +171,52 @@ def handle_confirmation(message: str) -> str | None:
         return None
 
 
+def _days_ago(moment) -> int:
+    from datetime import datetime
+    return max(0, (datetime.now() - moment).days)
+
+
+def ultimo_contacto(nombre: str) -> dict:
+    """Cuando hablaste por ultima vez con alguien (solo fechas y recuentos; nunca el contenido)."""
+    found = find(nombre)
+    if not found:
+        return {"encontrados": [], "nota": "No hay ningun contacto con ese nombre."}
+    out = []
+    try:
+        for person in found[:3]:
+            row = _query(
+                "SELECT max(fecha), min(fecha), count(*), count(*) FILTER (WHERE fecha > now() - interval '30 days'), "
+                "(SELECT de_mi FROM mensajes_chat WHERE contacto_id = %s ORDER BY fecha DESC LIMIT 1) "
+                "FROM mensajes_chat WHERE contacto_id = %s", (person["id"], person["id"]), fetch="one")
+            if not row or not row[0]:
+                out.append({"id": person["id"], "nombre": person["nombre"], "nota": "Sin chats importados de esta persona."})
+                continue
+            out.append({"id": person["id"], "nombre": person["nombre"], "ultimo_mensaje": row[0].strftime("%Y-%m-%d %H:%M"),
+                        "hace_dias": _days_ago(row[0]), "lo_ultimo_lo_escribio": "tu" if row[4] else "la otra persona",
+                        "primer_mensaje": row[1].strftime("%Y-%m-%d"), "mensajes_ultimos_30_dias": row[3], "mensajes_en_total": row[2]})
+    except Exception as e:
+        if "mensajes_chat" in str(e):
+            return {"nota": "Todavia no hay chats de WhatsApp importados (scripts/whatsapp_importar.py)."}
+        raise
+    return {"resultados": out}
+
+
+def contactos_sin_hablar(dias: int = 60, limite: int = 10, minimo_mensajes: int = 20) -> dict:
+    """Personas con las que hablabas bastante y llevas mas de `dias` sin escribir (solo nombres y fechas)."""
+    try:
+        rows = _query(
+            "SELECT c.id, c.nombre, max(m.fecha) AS ultimo, count(*) AS total FROM contactos c JOIN mensajes_chat m ON m.contacto_id = c.id "
+            "GROUP BY c.id, c.nombre HAVING max(m.fecha) < now() - make_interval(days => %s) AND count(*) >= %s "
+            "ORDER BY count(*) DESC, max(m.fecha) ASC LIMIT %s", (int(dias), int(minimo_mensajes), min(int(limite), 25)))
+    except Exception as e:
+        if "mensajes_chat" in str(e):
+            return {"nota": "Todavia no hay chats de WhatsApp importados (scripts/whatsapp_importar.py)."}
+        raise
+    return {"dias": int(dias), "resultados": [{"id": r[0], "nombre": r[1], "ultimo_mensaje": r[2].strftime("%Y-%m-%d"),
+                                                "hace_dias": _days_ago(r[2]), "mensajes_en_total": r[3]} for r in rows],
+            "nota": "Solo cuenta personas con chats importados."}
+
+
 TOOL_SCHEMAS = [
     {"type": "function", "function": {
         "name": "buscar_contacto",
@@ -190,4 +236,20 @@ TOOL_SCHEMAS = [
             "texto": {"type": "string", "description": "Texto del mensaje"},
             "asunto": {"type": "string", "description": "Asunto (obligatorio solo para correo)"}},
             "required": ["contacto_id", "canal", "texto"]}}},
+]
+
+TOOL_SCHEMAS += [
+    {"type": "function", "function": {
+        "name": "ultimo_contacto",
+        "description": ("Dice cuando hablaste por ultima vez por WhatsApp con una persona de la agenda, quien escribio lo ultimo y cuanto habeis hablado. "
+                        "Solo da fechas y recuentos, nunca el contenido de los mensajes."),
+        "parameters": {"type": "object", "properties": {"nombre": {"type": "string", "description": "Nombre, apodo o empresa de la persona"}}, "required": ["nombre"]}}},
+    {"type": "function", "function": {
+        "name": "contactos_sin_hablar",
+        "description": ("Lista a las personas con las que hablabas bastante por WhatsApp y con las que llevas mucho tiempo sin hablar. "
+                        "Solo nombres y fechas, sin contenido."),
+        "parameters": {"type": "object", "properties": {
+            "dias": {"type": "integer", "description": "Dias sin hablar (por defecto 60)"},
+            "limite": {"type": "integer", "description": "Maximo de personas (por defecto 10)"},
+            "minimo_mensajes": {"type": "integer", "description": "Minimo de mensajes historicos para contar como relacion activa (por defecto 20)"}}}}},
 ]

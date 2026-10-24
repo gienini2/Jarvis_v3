@@ -51,3 +51,6 @@ config/google_user_token.json
 # Chats de WhatsApp exportados y sus listados: nunca al repositorio
 data/whatsapp_*
 data/whatsapp_exports/
+
+# Resultados brutos de evaluaciones de modelos (el resumen .md si se versiona)
+data/eval_modelos_*.json

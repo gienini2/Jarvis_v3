@@ -269,14 +269,36 @@
           "name": "dolphin3:8b",
           "display_name": "Dolphin 3.0 8B (uncensored)",
           "roles": [
-            "general"
+            "general",
+            "tools"
           ],
           "priority": 85,
           "context": 32768,
           "reasoning": 6,
           "coding": 7,
           "speed": 6,
-          "tools": false,
+          "tools": true,
+          "stream": true,
+          "vision": false,
+          "embeddings": false,
+          "role_priority": {
+            "tools": 70
+          }
+        },
+        {
+          "name": "mistral:7b",
+          "display_name": "Mistral 7B",
+          "tool_mode": "emulated",
+          "roles": [
+            "general",
+            "tools"
+          ],
+          "priority": 76,
+          "context": 32768,
+          "reasoning": 5,
+          "coding": 5,
+          "speed": 6,
+          "tools": true,
           "stream": true,
           "vision": false,
           "embeddings": false

@@ -26,6 +26,23 @@ _CONFIG = _load_config()
 _PROVIDERS_CONFIG = _CONFIG["providers"]
 _SELECTION = _CONFIG.get("selection", {})
 _BACKEND_LABELS = _CONFIG.get("backend_labels", {})
+SCORES_PATH = CONFIG_PATH.with_name("puntuaciones_locales.json")
+MIN_RELIABLE_SCORE = 40   # un modelo local que puntua menos en tool-calling no se usa para herramientas
+
+
+def _apply_measured_scores(providers: dict, path: Path = SCORES_PATH):
+    """El orden de los modelos locales para herramientas lo marca su puntuacion medida (scripts/eval_modelos_locales.py --aplicar)."""
+    if not path.exists():
+        return
+    scores = json.loads(path.read_text(encoding="utf-8")).get("modelos", {})
+    for model in providers.get("ollama", {}).get("models", []):
+        score = scores.get(model["name"])
+        if score is not None:
+            model["measured_score"] = score
+            model.setdefault("role_priority", {})["tools"] = score
+
+
+_apply_measured_scores(_PROVIDERS_CONFIG)
 
 # Ponderacion potencia + DISPONIBILIDAD. La potencia (prioridad + capacidad) elige
 # el mejor modelo; la disponibilidad ajusta: un proveedor potente pero lento o con
@@ -97,7 +114,8 @@ def _power_score(provider_config: dict, model_config: dict, requirements: dict) 
         capability_bonus = model_config.get("reasoning", 0)
     else:
         capability_bonus = model_config.get("speed", 0)
-    return provider_config.get("priority", 0) + model_config.get("priority", 0) + capability_bonus
+    priority = (model_config.get("role_priority") or {}).get(role, model_config.get("priority", 0))
+    return provider_config.get("priority", 0) + priority + capability_bonus
 
 
 def _score(provider_name: str, provider_config: dict, model_config: dict, requirements: dict) -> float:
@@ -122,6 +140,8 @@ def _discard_reason(provider_name: str, provider_config: dict, model_config: dic
         return f"rol no soportado: {role}"
     if requirements.get("tools") and not model_config.get("tools", False):
         return "tools no soportado"
+    if requirements.get("tools") and model_config.get("measured_score", 100) < MIN_RELIABLE_SCORE:
+        return f"poco fiable con herramientas (puntuacion {model_config['measured_score']})"
     if requirements.get("stream") and not model_config.get("stream", False):
         return "stream no soportado"
     if requirements.get("vision") and not model_config.get("vision", False):

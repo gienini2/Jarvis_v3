@@ -43,3 +43,6 @@ data/claude_code_memorias*
 # MASSIVE descargado (reproducible con scripts/import_massive.py) y casos de prueba derivados
 data/massive_es/
 data/massive_cases.json
+
+# Contactos personales: nunca al repositorio
+data/contactos_*

@@ -1,9 +1,9 @@
 """Puntua modelos locales de Ollama en llamadas a herramientas (tool-calling) con los casos de tests/tool_cases.json.
 
 NO ejecuta ninguna herramienta: solo mira que herramienta pediria cada modelo, con las MISMAS herramientas y prompt de
-sistema que le daria Jarvis segun el tema del caso (core/domains.py). Usa solo frases inventadas.
+sistema que le daria Jarvis segun el tema del caso (core/domains.py); los modelos sin herramientas nativas se miden con la emulacion (core/tool_emulation.py). Usa solo frases inventadas.
 Uso:
-  python scripts/eval_modelos_locales.py --modelos qwen2.5:7b,mistral:7b [--reps 3] [--limite 20] [--pull] [--descargar]
+  python scripts/eval_modelos_locales.py --modelos qwen2.5:7b,mistral:7b [--reps 3] [--limite 20] [--pull] [--descargar] [--aplicar]
 Puntuacion = 100 * (0.50*herramienta + 0.20*argumentos + 0.10*(1-alucinaciones) + 0.10*consistencia + 0.10*velocidad)
   velocidad = 1 - mediana_de_latencia/10 s (acotada a 0..1). Resultados en data/eval_modelos_FECHA.json y .md
 """
@@ -58,10 +58,19 @@ def pull(model: str):
                 raise RuntimeError(data["error"])
 
 
-def ask(model: str, case: dict, thinking: bool):
+def ask(model: str, case: dict, thinking: bool, emulated: bool = False):
     domain = case["dominio"]
     offered = domains.tools_for([domain])
     system = domains.system_prompt([domain], case["prompt"])
+    if emulated:   # mismo camino que usa Jarvis con modelos sin herramientas nativas (core/tool_emulation.py)
+        from core.llm_types import LLMRequest
+        from providers.ollama import OllamaProvider
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": case["prompt"]}]
+        res = OllamaProvider().chat_tools(LLMRequest(prompt=messages, tools=offered, model=model))
+        if not res.success:
+            return {"error": str(res.exception)[:200], "wall": res.latency}, offered
+        out = (res.usage or {}).get("out", 0)
+        return {"message": res.response, "wall": res.latency, "eval_count": out, "eval_s": res.latency, "prompt_tokens": (res.usage or {}).get("in", 0)}, offered
     body = {"model": model, "stream": False, "keep_alive": "20m", "tools": offered,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": case["prompt"]}],
             "options": {"temperature": 0.2, "num_ctx": 4096, "num_gpu": 99}}
@@ -123,16 +132,16 @@ def score_case(case, result, offered):
 
 def evaluate(model: str, cases: list[dict], reps: int):
     caps = capabilities(model)
-    if "tools" not in caps:
-        return {"modelo": model, "sin_soporte": True, "capacidades": caps}
+    from providers.ollama import OllamaProvider
+    emulated = not OllamaProvider._supports_tools(model)
     thinking = "thinking" in caps
-    ask(model, cases[0], thinking)   # calentamiento (carga el modelo): no puntua
+    ask(model, cases[0], thinking, emulated)   # calentamiento (carga el modelo): no puntua
     per_case, lat, tps = [], [], []
     t0 = time.monotonic()
     for i, case in enumerate(cases, 1):
         runs = []
         for _ in range(reps):
-            result, offered = ask(model, case, thinking)
+            result, offered = ask(model, case, thinking, emulated)
             sc = score_case(case, result, offered)
             runs.append(sc)
             if "wall" in result and "error" not in result:
@@ -165,6 +174,7 @@ def evaluate(model: str, cases: list[dict], reps: int):
     speed = min(1, max(0, 1 - (summary["latencia_mediana_s"] or 10) / 10))
     summary["puntuacion"] = round(100 * (.5 * summary["herramienta"] + .2 * summary["argumentos"] + .1 * (1 - summary["alucinaciones"])
                                          + .1 * summary["consistencia"] + .1 * speed), 1)
+    summary["emulado"] = emulated
     return {"modelo": model, "resumen": summary, "casos": per_case, "capacidades": caps}
 
 
@@ -194,18 +204,24 @@ def main():
         last = results[-1]
         if "resumen" in last:
             s = last["resumen"]
-            print(f"  puntuacion {s['puntuacion']} | herramienta {s['herramienta']:.0%} | args {s['argumentos']:.0%} | alucina {s['alucinaciones']:.0%} | "
+            print(f"  {'[emulado] ' if s['emulado'] else ''}puntuacion {s['puntuacion']} | herramienta {s['herramienta']:.0%} | args {s['argumentos']:.0%} | alucina {s['alucinaciones']:.0%} | "
                   f"mediana {s['latencia_mediana_s']:.1f}s | {s['tokens_por_s'] or 0:.0f} tok/s | GPU {s['gpu_pct']}%", flush=True)
         elif last.get("sin_soporte"):
             print(f"  SIN soporte de herramientas en Ollama (capacidades: {last['capacidades']})")
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
     out = ROOT / "data" / f"eval_modelos_{stamp}.json"
     out.write_text(json.dumps({"fecha": stamp, "reps": reps, "casos": len(cases), "resultados": results}, ensure_ascii=False, indent=1), encoding="utf-8")
+    if "--aplicar" in argv:
+        path = ROOT / "config" / "puntuaciones_locales.json"
+        known = json.loads(path.read_text(encoding="utf-8")).get("modelos", {}) if path.exists() else {}
+        known.update({r["modelo"]: r["resumen"]["puntuacion"] for r in results if "resumen" in r})
+        path.write_text(json.dumps({"fecha": stamp, "modelos": known}, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"Puntuaciones aplicadas al router: {path.name}")
     rows = sorted((r for r in results if "resumen" in r), key=lambda r: -r["resumen"]["puntuacion"])
     md = ["| Modelo | Puntuación | Herramienta | Con tool | Charla sin tool | Args válidos | Inventa | Consistencia | Mediana | tok/s | GPU |", "|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         s = r["resumen"]
-        md.append(f"| {r['modelo']} | **{s['puntuacion']}** | {s['herramienta']:.0%} | {s['herramienta_con_tool']:.0%} | {('n/d' if s['charla_sin_tool'] is None else format(s['charla_sin_tool'], '.0%'))} | {s['argumentos']:.0%} | "
+        md.append(f"| {r['modelo']}{' (emulado)' if s['emulado'] else ''} | **{s['puntuacion']}** | {s['herramienta']:.0%} | {s['herramienta_con_tool']:.0%} | {('n/d' if s['charla_sin_tool'] is None else format(s['charla_sin_tool'], '.0%'))} | {s['argumentos']:.0%} | "
                   f"{s['alucinaciones']:.0%} | {s['consistencia']:.0%} | {s['latencia_mediana_s']:.1f}s | {s['tokens_por_s'] or 0:.0f} | {s['gpu_pct']}% |")
     out.with_suffix(".md").write_text("\n".join(md) + "\n", encoding="utf-8")
     print("\n" + "\n".join(md) + f"\n\nGuardado en {out.name} (+ .md)")

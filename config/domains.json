@@ -287,6 +287,34 @@
         "audita la carpeta del proyecto"
       ],
       "hints": "c[oó]digo|\\brepo\\b|repositorio|\\bfunci[oó]n\\b|\\w+\\.py\\b|\\bbugs?\\b|audit|refactor|endpoint|\\bscript\\b|\\bfichero\\b"
+    },
+    "tiempo": {
+      "tools": [],
+      "prompt": "Todavia NO tienes herramienta para consultar el tiempo: dilo claramente y no inventes datos meteorologicos.",
+      "examples": [
+        "qué tiempo hace hoy",
+        "va a llover mañana",
+        "mírame el tiempo",
+        "qué temperatura hay ahora",
+        "necesito paraguas hoy",
+        "cómo está el tiempo en Barcelona",
+        "hará frío este fin de semana",
+        "previsión del tiempo para esta semana"
+      ]
+    },
+    "web": {
+      "tools": [],
+      "prompt": "Todavia NO tienes acceso a internet ni herramientas de busqueda: dilo claramente y no inventes datos actuales (noticias, precios, horarios, resultados). Si es conocimiento general estable puedes responder con lo que sabes, avisando de que puede estar desactualizado.",
+      "examples": [
+        "busca en internet cuánto cuesta una PlayStation 5",
+        "últimas noticias de hoy",
+        "quién ganó el partido de ayer",
+        "qué significa la palabra efímero",
+        "cómo llegar al aeropuerto en transporte público",
+        "a qué hora cierra el supermercado",
+        "recomiéndame una película",
+        "busca una receta de tortilla de patatas"
+      ]
     }
   },
   "hint_boost": 0.06

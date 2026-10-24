@@ -14,7 +14,8 @@ TESTS = Path(__file__).resolve().parent.parent / "tests"
 def main():
     verbose = "-v" in sys.argv
     files = [a for a in sys.argv[1:] if a != "-v"] or ["domain_cases.json"]
-    cases = [c for f in files for c in json.loads((TESTS / f).read_text(encoding="utf-8"))]
+    paths = [Path(f) if Path(f).exists() else TESTS / f for f in files]
+    cases = [c for p in paths for c in json.loads(p.read_text(encoding="utf-8"))]
     covered = top1 = routed = 0
     expect_scores, none_scores = [], []
     for case in cases:

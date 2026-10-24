@@ -39,3 +39,7 @@ data/domain_examples.npz
 
 # Memorias destiladas con datos personales (revision manual antes de cargar)
 data/claude_code_memorias*
+
+# MASSIVE descargado (reproducible con scripts/import_massive.py) y casos de prueba derivados
+data/massive_es/
+data/massive_cases.json

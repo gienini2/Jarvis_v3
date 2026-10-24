@@ -22,6 +22,7 @@ log = logging.getLogger("jarvis.domains")
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config" / "domains.json"
 CACHE_PATH = ROOT / "data" / "domain_examples.npz"
+EXTRA_PATH = ROOT / "data" / "domain_examples_massive.json"
 
 # nomic-embed-text rinde mejor con el prefijo de tarea en ambos lados
 PREFIX = "search_query: "
@@ -38,6 +39,13 @@ def _load_config() -> dict:
     global _config
     if _config is None:
         _config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        try:
+            extra = json.loads(EXTRA_PATH.read_text(encoding="utf-8"))
+            for name, phrases in extra.items():
+                if name in _config["domains"]:
+                    _config["domains"][name]["examples"] = _config["domains"][name]["examples"] + phrases
+        except FileNotFoundError:
+            pass
         known = {t["function"]["name"] for t in TOOLS}
         for name, domain in _config["domains"].items():
             unknown = [t for t in domain["tools"] if t not in known]

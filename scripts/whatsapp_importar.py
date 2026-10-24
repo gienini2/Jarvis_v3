@@ -9,6 +9,7 @@ Solo imprime recuentos, nunca nombres ni mensajes.
 """
 import csv
 import difflib
+import os
 import re
 import sys
 import unicodedata
@@ -19,8 +20,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 ROOT = Path(__file__).resolve().parents[1]
-UNASSIGNED = ROOT / "data" / "whatsapp_sin_asignar.csv"
-MAPPING = ROOT / "data" / "whatsapp_mapa.csv"
+UNASSIGNED = Path(os.environ.get("WA_SIN_ASIGNAR") or ROOT / "data" / "whatsapp_sin_asignar.csv")
+MAPPING = Path(os.environ.get("WA_MAPA") or ROOT / "data" / "whatsapp_mapa.csv")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS mensajes_chat (

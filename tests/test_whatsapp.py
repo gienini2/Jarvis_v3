@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT))
 from core import contacts, tools
 from core.db import get_connection
 
+TEST_CSV = Path(tempfile.gettempdir()) / "wa_test_sin_asignar.csv"
 checks = []
 
 
@@ -35,7 +36,7 @@ def db(sql, args=()):
 
 def run_import(folder, *extra):
     out = subprocess.run([sys.executable, "-W", "ignore", str(ROOT / "scripts" / "whatsapp_importar.py"), str(folder), *extra],
-                         capture_output=True, text=True, encoding="utf-8", env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"})
+                         capture_output=True, text=True, encoding="utf-8", env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8", "WA_SIN_ASIGNAR": str(TEST_CSV), "WA_MAPA": str(TEST_CSV) + ".mapa"})
     return out.stdout + out.stderr
 
 
@@ -44,7 +45,7 @@ for name in ("ZZ Prueba Alfa", "ZZ Prueba Beta", "ZZ Prueba Gamma"):
     cid = db("INSERT INTO contactos (nombre, busqueda) VALUES (%s, %s) RETURNING id", (name, name.lower()))[0][0]
     ids.append(cid)
 alfa, beta, gamma = ids
-had_unassigned = (ROOT / "data" / "whatsapp_sin_asignar.csv").exists()
+TEST_CSV.unlink(missing_ok=True)
 
 android = (
     "2/12/25, 18:32 - Los mensajes y las llamadas están cifrados de extremo a extremo.\n"
@@ -91,7 +92,7 @@ with tempfile.TemporaryDirectory() as tmp:
           len(rows_g) == 3 and rows_g[0][0].month == 9 and rows_g[0][0].day == 24 and rows_g[2][0].hour == 23 and "descartadas: 0" in out)
     check("ninguna fecha cae en el futuro", db("SELECT count(*) FROM mensajes_chat WHERE contacto_id = ANY(%s) AND fecha > now()", (ids,))[0][0] == 0)
     check("reimportar no duplica (0 nuevos)", "nuevos en BD: 0" in out2)
-    check("los chats sin asignar quedan en un CSV para resolverlos", (ROOT / "data" / "whatsapp_sin_asignar.csv").exists())
+    check("los chats sin asignar quedan en un CSV para resolverlos", TEST_CSV.exists())
 
 print("Herramientas de solo fechas")
 res = tools.call_tool("ultimo_contacto", {"nombre": "ZZ Prueba Alfa"})
@@ -105,7 +106,6 @@ check("contactos_sin_hablar tampoco devuelve contenido", "pastel" not in str(res
 check("las dos herramientas estan registradas", {"ultimo_contacto", "contactos_sin_hablar"} <= {t["function"]["name"] for t in tools.TOOLS})
 
 db("DELETE FROM contactos WHERE id = ANY(%s)", (ids,))
-if not had_unassigned:
-    (ROOT / "data" / "whatsapp_sin_asignar.csv").unlink(missing_ok=True)
+TEST_CSV.unlink(missing_ok=True)
 print(f"\nRESULTADO: {sum(checks)}/{len(checks)} comprobaciones OK")
 sys.exit(0 if all(checks) else 1)

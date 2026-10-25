@@ -84,6 +84,7 @@ check("con Ollama caido falla y NO se reintenta en la nube", raised and all(SECR
 
 print("Modo privado (procesador)")
 import core.processor as proc
+proc._warm_local = lambda: None
 sys.modules["alpha50.scheduler"] = types.SimpleNamespace(alpha50_intent_handler=lambda m: None)
 saved, stored, logged = [], [], []
 proc._save_message_safely = lambda role, msg: saved.append((role, msg))

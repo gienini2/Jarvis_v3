@@ -127,7 +127,7 @@ def ui_page():
     import json
     html = _UI_PATH.read_text(encoding="utf-8")
     html = html.replace('"__JARVIS_KEY__"', json.dumps(settings.JARVIS_API_KEY or ""))
-    return HTMLResponse(html)
+    return HTMLResponse(html, headers={"Cache-Control": "no-store"})
 
 
 _FACE_PATH = Path(__file__).resolve().parent.parent / "web" / "face.html"
@@ -207,6 +207,12 @@ async def audit_notify(job_id: int):
     except Exception as e:
         log.warning(f"[notify] no se pudo mandar a Telegram: {e}")
     return {"status": "notified"}
+
+
+@app.get("/privado")
+def privado():
+    from core import privacy
+    return {"activo": privacy.mode_on()}
 
 
 @app.get("/modelos")

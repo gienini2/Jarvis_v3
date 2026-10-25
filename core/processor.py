@@ -71,6 +71,14 @@ _PRIVACY_STATUS = re.compile(r"^\W*(/privado\?|modo privado\?)\W*$", re.IGNORECA
 _ONE_SHOT = re.compile(r"^\s*(?:/privado\s+|privado\s*[:,]\s*)(.+)$", re.IGNORECASE | re.DOTALL)
 
 
+def _warm_local():
+    try:
+        from core import llm_router
+        llm_router.warm_local()
+    except Exception as e:
+        log.warning(f"[privado] no se pudo precargar el modelo local: {e}")
+
+
 def process(message: str) -> tuple[str, str]:
     """Punto de entrada. Gestiona el modo privado (/privado, /publico) y delega en _process."""
     privacy.reset()
@@ -79,6 +87,7 @@ def process(message: str) -> tuple[str, str]:
             text = "🔒 Modo privado ACTIVADO." if privacy.mode_on() else "🔓 Modo privado desactivado."
         elif _PRIVACY_ON.match(message):
             privacy.set_mode(True)
+            threading.Thread(target=_warm_local, daemon=True).start()
             text = ("🔒 Modo privado activado: todo se procesa solo con el modelo local de tu PC, nada va a la nube y no se guarda en la memoria ni "
                     "en el historial. La voz no funciona en este modo (la transcripción usa la nube). Para salir: «modo normal» o /publico.")
         elif _PRIVACY_OFF.match(message):

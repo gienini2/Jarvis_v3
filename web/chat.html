@@ -172,6 +172,7 @@
   <header>
     <span class="logo">🤖</span>
     <span class="title">Jarvis</span>
+    <span id="privChip" class="status" style="display:none;margin-left:12px" title="Modo privado: solo modelos locales, nada se guarda">🔒 privado</span>
     <span class="status"><span id="dot" class="dot"></span><span id="statusText">conectando…</span></span>
     <button type="button" id="ttsBtn" class="btn" title="Leer las respuestas en voz alta">🔇</button>
   </header>
@@ -278,6 +279,7 @@ function mdToHtml(src) {
     return " B" + (blocks.length - 1) + " ";
   });
   s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  s = s.replace(/(https?:\/\/[^\s<)]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
   s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   const lines = s.split("\n");
   let out = "", ul = false, ol = false;
@@ -363,6 +365,8 @@ function splitBackend(s) {
   const m = String(s || "").match(/^\s*\[(🔒\s*)?([a-z0-9_-]+)\]\s*/i);
   return m ? { backend: m[2].toLowerCase(), priv: !!m[1], text: s.slice(m[0].length) } : { backend: null, priv: false, text: s };
 }
+function setPrivChip(on) { document.getElementById("privChip").style.display = on ? "" : "none"; }
+api("/privado").then(r => r.json()).then(d => setPrivChip(d.activo)).catch(() => {});
 function backendIcon(backend) {
   if (BACKEND_ICONS[backend]) return BACKEND_ICONS[backend];
   const fam = FAMILY_ICONS.find(([re]) => re.test(backend));
@@ -518,6 +522,8 @@ async function send() {
     const { backend, text, priv } = splitBackend(data.response || "(sin respuesta)");
     const el = addMsg("assistant", "");
     if (backend) setBackendBadge(el, backend, priv);
+    if (/^🔒 Modo privado activado/.test(text)) setPrivChip(true);
+    else if (/^🔓 Modo privado desactivado/.test(text)) setPrivChip(false);
     attachments = []; renderChips(); setStatus(true, "conectado");
     await typeInto(el, text);
     speak(text);

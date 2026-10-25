@@ -6,6 +6,7 @@ from pathlib import Path
 
 import requests
 
+from config.settings import settings
 from core import llm_stats
 from core.privacy import LOCAL_PROVIDERS, is_forced
 from core.backend_state import set_backend
@@ -283,3 +284,11 @@ def debug(request: LLMRequest | dict) -> str:
     else:
         lines.append("ninguno")
     return "\n".join(lines)
+
+
+def warm_local():
+    """Carga en la GPU el mejor modelo local para herramientas, para que la primera respuesta privada no espere a la carga."""
+    best = find_models({"role": "tools", "tools": True, "local_only": True}, ignore_health=True)
+    if best:
+        requests.post(settings.OLLAMA_URL,
+                      json={"model": best[0]["model"], "keep_alive": "20m"}, timeout=120)

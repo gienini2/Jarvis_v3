@@ -352,29 +352,31 @@ function maybeScroll(force) {
 newpill.onclick = () => { log.scrollTop = log.scrollHeight; hidePill(); };
 log.addEventListener("scroll", () => { if (nearBottom()) hidePill(); });
 
-// Icono por backend LLM. Reemplaza al texto [groq]/[nvidia]/... en el chat.
-const BACKEND_ICONS = {
-  groq: "⚡", nvidia: "🟢", "qwen-local": "🏠", "dolphin-local": "🐬",
-  kimi: "🌙", local: "💻", agent: "🤖",
-};
-const BACKEND_NAMES = {
-  groq: "Groq", nvidia: "NVIDIA", "qwen-local": "qwen local",
-  "dolphin-local": "dolphin local", kimi: "Kimi", local: "local",
-};
-// Separa un prefijo "[backend] ..." del texto. Devuelve {backend, text}.
+// Etiqueta visible de cada backend: icono + nombre + (al pasar el raton) limitaciones medidas de ese modelo.
+const BACKEND_ICONS = { groq: "⚡", nvidia: "🟢", kimi: "🌙", local: "💻", agent: "🤖" };
+const BACKEND_NAMES = { groq: "Groq", nvidia: "NVIDIA", kimi: "Kimi", local: "local" };
+const FAMILY_ICONS = [[/^qwen/, "👑🏠"], [/^(mistral|ministral)/, "🌬️🏠"], [/^dolphin/, "🐬"]];
+let modelLimits = {};
+api("/modelos").then(r => r.json()).then(d => { modelLimits = d || {}; }).catch(() => {});
+// Separa un prefijo "[backend] ..." (o "[🔒 backend] ...") del texto. Devuelve {backend, text, priv}.
 function splitBackend(s) {
-  const m = String(s || "").match(/^\s*\[([a-z0-9_-]+)\]\s*/i);
-  return m ? { backend: m[1].toLowerCase(), text: s.slice(m[0].length) } : { backend: null, text: s };
+  const m = String(s || "").match(/^\s*\[(🔒\s*)?([a-z0-9_-]+)\]\s*/i);
+  return m ? { backend: m[2].toLowerCase(), priv: !!m[1], text: s.slice(m[0].length) } : { backend: null, priv: false, text: s };
 }
-function setBackendBadge(turn, backend) {
+function backendIcon(backend) {
+  if (BACKEND_ICONS[backend]) return BACKEND_ICONS[backend];
+  const fam = FAMILY_ICONS.find(([re]) => re.test(backend));
+  return fam ? fam[1] : (backend.endsWith("-local") ? "🏠" : "🤖");
+}
+function setBackendBadge(turn, backend, priv) {
   const bubble = turn.querySelector(".bubble");
   if (!bubble) return;
-  const icon = BACKEND_ICONS[backend] || (backend.endsWith("-local") ? "🏠" : "🤖");
   const name = BACKEND_NAMES[backend] || backend;
+  const info = modelLimits[backend];
   const tag = document.createElement("div");
   tag.className = "tag";
-  tag.innerHTML = '<span class="llmbadge" title="Respondió: ' + esc(name) + '">' +
-                  '<span class="ic">' + icon + '</span>' + esc(name) + '</span>';
+  tag.innerHTML = '<span class="llmbadge" title="' + esc(info ? info.limitaciones : "Respondió: " + name) + '">' +
+                  (priv ? "🔒 " : "") + '<span class="ic">' + backendIcon(backend) + '</span>' + esc(name) + '</span>';
   bubble.insertBefore(tag, bubble.firstChild);
 }
 
@@ -513,9 +515,9 @@ async function send() {
   try {
     const data = await (await api("/chat", { method: "POST", body: JSON.stringify({ message: payload }) })).json();
     pend.remove();
-    const { backend, text } = splitBackend(data.response || "(sin respuesta)");
+    const { backend, text, priv } = splitBackend(data.response || "(sin respuesta)");
     const el = addMsg("assistant", "");
-    if (backend) setBackendBadge(el, backend);
+    if (backend) setBackendBadge(el, backend, priv);
     attachments = []; renderChips(); setStatus(true, "conectado");
     await typeInto(el, text);
     speak(text);

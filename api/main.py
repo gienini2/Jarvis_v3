@@ -209,6 +209,12 @@ async def audit_notify(job_id: int):
     return {"status": "notified"}
 
 
+@app.get("/modelos")
+def modelos():
+    from core.model_limits import limits
+    return limits()
+
+
 @app.post("/chat")
 def chat(req: ChatRequest):
     # Alpha50 ya se resuelve dentro de process() (core/processor.py), común a

@@ -3,7 +3,7 @@
  "modelos": {
   "qwen2.5:7b": 90.3,
   "mistral:7b": 59.7,
-  "dolphin3:8b": 89.2,
+  "dolphin3:8b": 91.9,
   "llama3.2:latest": 83.4,
   "llama3:8b": 59.4,
   "qwen3:8b": 96.6,

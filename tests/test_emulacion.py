@@ -117,6 +117,26 @@ result = provider.chat_tools(LLMRequest(prompt=request.prompt, tools=TOOLS, mode
 check("si Ollama dice 'does not support tools', pasa solo a la emulacion y lo recuerda",
       result.success and result.response["tool_calls"][0]["function"]["name"] == "query_tasks" and ollama_mod._TOOL_SUPPORT["nuevo-falso:8b"] is False)
 
+replies = ['<tool_call>{"name": "weather", "arguments": {}}</tool_call>', "No tengo herramienta del tiempo."]
+state["caps"] = ["completion"]
+state["content"] = None
+orig_post = requests.post
+
+
+def retry_post(url, json=None, **kw):
+    if url.endswith("/api/show"):
+        return orig_post(url, json=json, **kw)
+    sent.append(json)
+    return Resp({"message": {"role": "assistant", "content": replies.pop(0)}})
+
+
+requests.post = retry_post
+sent.clear()
+ollama_mod._TOOL_SUPPORT.clear()
+result = provider.chat_tools(LLMRequest(prompt=request.prompt, tools=TOOLS, model="dolphin-falso:8b"))
+check("una herramienta inventada se rechaza y se reintenta pidiendo texto", len(sent) == 2 and result.response["content"] == "No tengo herramienta del tiempo." and "tool_calls" not in result.response)
+requests.post = fake_post
+
 check("un modelo marcado tool_mode=emulated se emula aunque Ollama diga que tiene tools", ollama_mod.OllamaProvider._supports_tools("mistral:7b") is False)
 
 print("Orden de los modelos locales por puntuacion")

@@ -115,24 +115,32 @@ class OllamaProvider(BaseProvider):
             return self._chat_emulated(request)
         return result
 
+    @staticmethod
+    def _post_plain(chat_url, request, messages) -> dict:
+        response = requests.post(
+            chat_url,
+            json={"model": request.model, "messages": messages, "stream": False,
+                  "options": {"num_gpu": 99, "num_ctx": settings.OLLAMA_NUM_CTX, "temperature": settings.LLM_TEMPERATURE}},
+            timeout=settings.TIMEOUT,
+        )
+        raise_with_body(response)
+        return response.json()
+
     def _chat_emulated(self, request):
         """Modelos sin plantilla de herramientas (p. ej. dolphin3): tool-calling por prompt (core/tool_emulation.py)."""
         started = time.monotonic()
         chat_url = settings.OLLAMA_URL.replace("/api/generate", "/api/chat")
         try:
-            response = requests.post(
-                chat_url,
-                json={
-                    "model": request.model,
-                    "messages": tool_emulation.to_plain_messages(request.prompt, request.tools),
-                    "stream": False,
-                    "options": {"num_gpu": 99, "num_ctx": settings.OLLAMA_NUM_CTX, "temperature": settings.LLM_TEMPERATURE},
-                },
-                timeout=settings.TIMEOUT,
-            )
-            raise_with_body(response)
-            data = response.json()
+            data = self._post_plain(chat_url, request, tool_emulation.to_plain_messages(request.prompt, request.tools))
             calls, text = tool_emulation.parse_tool_calls(data["message"].get("content", ""))
+            valid = {t["function"]["name"] for t in request.tools or []}
+            if calls and not any(c["function"]["name"] in valid for c in calls):
+                retry = tool_emulation.to_plain_messages(request.prompt, request.tools) + [
+                    {"role": "assistant", "content": data["message"].get("content", "")},
+                    {"role": "user", "content": "Esa herramienta no existe. Responde ahora con texto normal, sin usar herramientas."}]
+                data = self._post_plain(chat_url, request, retry)
+                calls, text = tool_emulation.parse_tool_calls(data["message"].get("content", ""))
+            calls = [c for c in calls if c["function"]["name"] in valid]
             message = {"role": "assistant", "content": text}
             if calls:
                 message["tool_calls"] = calls

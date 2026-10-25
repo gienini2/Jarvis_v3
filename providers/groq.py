@@ -13,6 +13,8 @@ _SESSION = requests.Session()   # reutiliza la conexion TLS entre llamadas (el s
 class GroqProvider(BaseProvider):
     name = "groq"
     supports_tools = True
+    URL = "https://api.groq.com/openai/v1/chat/completions"
+    MODELS_URL = "https://api.groq.com/openai/v1/models"
 
     def chat(self, request):
         from core.llm import build_prompt
@@ -24,7 +26,7 @@ class GroqProvider(BaseProvider):
         prompt_text = request.prompt if images else build_prompt(request.prompt, request.rag)
         try:
             response = _SESSION.post(
-                "https://api.groq.com/openai/v1/chat/completions",
+                self.URL,
                 headers=self._headers(),
                 json={
                     "model": request.model,
@@ -55,7 +57,7 @@ class GroqProvider(BaseProvider):
             body["reasoning_effort"] = "low"   # por voz importa mas la rapidez que razonar a fondo
         try:
             response = _SESSION.post(
-                "https://api.groq.com/openai/v1/chat/completions",
+                self.URL,
                 headers=self._headers(),
                 json=body,
                 # Un proveedor cloud caido no debe dejar el chat local en
@@ -70,18 +72,21 @@ class GroqProvider(BaseProvider):
             return ProviderResult(self.name, request.model, False, time.monotonic() - started, None, exc)
 
     def health(self):
-        if not settings.GROQ_API_KEY:
+        if not self._api_key():
             return False
         response = requests.get(
-            "https://api.groq.com/openai/v1/models",
+            self.MODELS_URL,
             headers=self._headers(),
             timeout=5,
         )
         raise_with_body(response)
         return True
 
+    def _api_key(self):
+        return settings.GROQ_API_KEY
+
     def _headers(self):
         return {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Authorization": f"Bearer {self._api_key()}",
             "Content-Type": "application/json",
         }

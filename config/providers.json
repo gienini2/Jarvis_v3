@@ -31,7 +31,8 @@
     "groq": "groq",
     "nvidia": "nvidia",
     "ollama": "qwen-local",
-    "kimi": "kimi"
+    "kimi": "kimi",
+    "cerebras": "cerebras"
   },
   "scoring": {
     "_comment": "Ponderacion potencia + disponibilidad del router. score = prioridad_proveedor + prioridad_modelo + capacidad(rol) + ajuste_disponibilidad. La disponibilidad la mide HealthManager en vivo (latencia + racha de 429/errores que decae con exitos).",
@@ -418,6 +419,11 @@
           "embeddings": false
         }
       ]
+    },
+    "cerebras": {
+      "priority": 95,
+      "enabled": false,
+      "models": []
     }
   },
   "model_fields": {

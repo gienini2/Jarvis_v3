@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     FIGARO_HOST: str = "100.78.43.76"
 
     GROQ_API_KEY: str = ""
+    CEREBRAS_API_KEY: str = ""
     GROQ_MODEL_GENERAL: str = "openai/gpt-oss-120b"
     GROQ_MODEL_CODE: str = "qwen/qwen3.8-27b"
     # Whisper en Groq para transcribir notas de voz (core/transcribe.py).

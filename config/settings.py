@@ -35,6 +35,7 @@ class Settings(BaseSettings):
 
     LLM_TEMPERATURE: float = 0.2
     LLM_MAX_TOKENS: int = 2048
+    OLLAMA_KEEP_ALIVE: str = "30m"   # tiempo que Ollama conserva el modelo en la GPU tras cada uso (por defecto 5 min: cada pausa costaba ~8 s de carga)
     OLLAMA_NUM_CTX: int = 4096   # 8192 dispara la latencia de Ollama en la RTX 5050 (~46s)
     # Enrutado por temas (config/domains.json): prompt y tools minimos segun el mensaje.
     # DOMAIN_ROUTING=false en .env vuelve al clasificador ligera/completa de siempre.

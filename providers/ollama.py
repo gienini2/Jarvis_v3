@@ -38,6 +38,7 @@ class OllamaProvider(BaseProvider):
             "model": request.model,
             "prompt": request.prompt if images else build_prompt(request.prompt, request.rag),
             "stream": False,
+            "keep_alive": settings.OLLAMA_KEEP_ALIVE,
             "options": {
                 "num_gpu": 99,
                 "num_ctx": settings.OLLAMA_NUM_CTX,
@@ -119,7 +120,7 @@ class OllamaProvider(BaseProvider):
     def _post_plain(chat_url, request, messages) -> dict:
         response = requests.post(
             chat_url,
-            json={"model": request.model, "messages": messages, "stream": False,
+            json={"model": request.model, "messages": messages, "stream": False, "keep_alive": settings.OLLAMA_KEEP_ALIVE,
                   "options": {"num_gpu": 99, "num_ctx": settings.OLLAMA_NUM_CTX, "temperature": settings.LLM_TEMPERATURE}},
             timeout=settings.TIMEOUT,
         )
@@ -156,6 +157,7 @@ class OllamaProvider(BaseProvider):
             "messages": self._adapt_messages(request.prompt),
             "tools": request.tools,
             "stream": False,
+            "keep_alive": settings.OLLAMA_KEEP_ALIVE,
             "options": {
                 "num_gpu": 99,
                 "num_ctx": settings.OLLAMA_NUM_CTX,

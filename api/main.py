@@ -210,10 +210,32 @@ async def audit_notify(job_id: int):
     return {"status": "notified"}
 
 
+_last_warm = 0.0
+
+
+@app.post("/calentar")
+def calentar():
+    """Precarga el mejor modelo local para herramientas: lo llaman /face y el chat al abrirse o al empezar a escuchar."""
+    import threading
+    import time
+    from core import llm_router
+    global _last_warm
+    if time.monotonic() - _last_warm > 60:
+        _last_warm = time.monotonic()
+        threading.Thread(target=lambda: llm_router.warm_local(), daemon=True).start()
+    return {"ok": True}
+
+
 @app.get("/privado")
 def privado():
     from core import privacy
     return {"activo": privacy.mode_on()}
+
+
+@app.get("/modelos/tabla")
+def modelos_tabla():
+    from core import model_report
+    return model_report.build()
 
 
 @app.get("/modelos")

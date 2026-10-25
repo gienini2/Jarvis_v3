@@ -183,6 +183,7 @@
     <button class="tab-btn" data-tab="alpha50">💪 Alpha50</button>
     <button class="tab-btn" data-tab="scan">🛰️ Netscan / Audit</button>
     <button class="tab-btn" data-tab="cmds">⌨️ Comandos</button>
+    <button class="tab-btn" data-tab="models">🧠 Modelos</button>
   </div>
 
   <!-- ---------------- CHAT ---------------- -->
@@ -239,6 +240,15 @@
       <button class="sub-btn reload" id="reloadCmds" title="Recargar">🔄</button>
     </div>
     <div class="pane" id="resCmds"><div class="empty">Cargando…</div></div>
+  </div>
+
+  <!-- ---------------- MODELOS (locales / nube) ---------------- -->
+  <div class="tab-panel" id="panel-models">
+    <div class="subtabs">
+      <span class="sub-title">🧠 Modelos · evaluaciones + uso real de las últimas 24 h</span>
+      <button class="sub-btn reload" id="reloadModels" title="Recargar">🔄</button>
+    </div>
+    <div class="pane" id="resModels"><div class="empty">Cargando…</div></div>
   </div>
 
 <script>window.JARVIS_KEY = "__JARVIS_KEY__";</script>
@@ -309,6 +319,7 @@ function switchTab(name) {
   if (name === "alpha50") loadAlpha50();
   if (name === "scan") loadScan(currentScanSub);
   if (name === "cmds") loadCommands();
+  if (name === "models") loadModels();
 }
 document.querySelectorAll(".tab-btn").forEach(b => b.onclick = () => switchTab(b.dataset.tab));
 document.querySelectorAll(".sub-btn[data-sub]").forEach(b => b.onclick = () => {
@@ -320,6 +331,33 @@ $("#reloadAlpha").onclick = () => loadAlpha50();
 $("#reloadMando").onclick = () => loadMando();
 $("#reloadScan").onclick = () => loadScan(currentScanSub);
 $("#reloadCmds").onclick = () => loadCommands();
+$("#reloadModels").onclick = () => loadModels();
+
+// ---- Modelos: dos grupos (locales / nube) con lo medido y lo vivido ----
+const MODEL_CATS = ["instrucciones", "razonamiento", "honestidad", "robustez", "contexto", "voz"];
+async function loadModels() {
+  const box = $("#resModels");
+  box.innerHTML = '<div class="empty">Cargando…</div>';
+  try {
+    const rows = (await (await api("/modelos/tabla")).json()).filas || [];
+    const n = (v, d = 1) => v == null ? "–" : Number(v).toFixed(d);
+    let html = "";
+    for (const group of ["Locales", "Nube"]) {
+      html += '<div class="cmdgrp">' + group + '</div><div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:12px;white-space:nowrap">' +
+        "<tr>" + ["Modelo", "Estado", "Global", "Herram.", "Uso herr.", "Uso charla", ...MODEL_CATS.map(c => c.slice(0, 5)), "Lat. eval", "Lat. real", "Llam. 24h", "Fallos"]
+          .map(h => '<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">' + h + "</th>").join("") + "</tr>";
+      for (const r of rows.filter(x => x.grupo === group)) {
+        const c = r.categorias || {};
+        const cells = [r.proveedor + "/" + r.modelo, r.estado, n(r.global), n(r.herramientas), n(r.uso_herramientas), n(r.uso_charla),
+          ...MODEL_CATS.map(k => c[k] == null ? "–" : Math.round(c[k] * 100) + "%"),
+          n(r.mediana_eval_s) + "s", n(r.mediana_real_s) + "s", r.llamadas_24h, r.fallos_24h];
+        html += "<tr>" + cells.map((v, i) => '<td style="padding:3px 8px;border-bottom:1px solid var(--border)' + (i === 2 ? ";font-weight:700" : "") + '">' + esc(String(v)) + "</td>").join("") + "</tr>";
+      }
+      html += "</table></div>";
+    }
+    box.innerHTML = html;
+  } catch (e) { box.innerHTML = '<div class="empty">No se pudo cargar: ' + esc(String(e)) + "</div>"; }
+}
 
 // ---- Comandos (chuleta leída de config/commands.json) ----
 async function loadCommands() {
@@ -366,6 +404,7 @@ function splitBackend(s) {
   return m ? { backend: m[2].toLowerCase(), priv: !!m[1], text: s.slice(m[0].length) } : { backend: null, priv: false, text: s };
 }
 function setPrivChip(on) { document.getElementById("privChip").style.display = on ? "" : "none"; }
+api("/calentar", { method: "POST", body: "{}" }).catch(() => {});
 api("/privado").then(r => r.json()).then(d => setPrivChip(d.activo)).catch(() => {});
 function backendIcon(backend) {
   if (BACKEND_ICONS[backend]) return BACKEND_ICONS[backend];

@@ -249,8 +249,8 @@ def main():
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
     out = ROOT / "data" / f"eval_modelos_{stamp}.json"
     out.write_text(json.dumps({"fecha": stamp, "reps": reps, "casos": len(cases), "resultados": results}, ensure_ascii=False, indent=1), encoding="utf-8")
-    if "--aplicar" in argv and not provider:
-        path = ROOT / "config" / "puntuaciones_locales.json"
+    if "--aplicar" in argv:
+        path = ROOT / "config" / ("puntuaciones_nube.json" if provider else "puntuaciones_locales.json")
         known = json.loads(path.read_text(encoding="utf-8")).get("modelos", {}) if path.exists() else {}
         known.update({r["modelo"]: r["resumen"]["puntuacion"] for r in results if "resumen" in r})
         path.write_text(json.dumps({"fecha": stamp, "modelos": known}, ensure_ascii=False, indent=1), encoding="utf-8")

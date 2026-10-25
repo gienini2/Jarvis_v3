@@ -12,12 +12,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from core import agent, llm_router as router, privacy
+from core import agent, llm_router as router, llm_stats, privacy
 from core.llm_types import LLMRequest, ProviderResult
 
 SECRET = "CONTENIDO-SECRETO-DEL-CHAT"
 checks = []
 privacy.FLAG = Path(tempfile.mkdtemp()) / "modo_privado.flag"
+llm_stats.LOG_PATH = Path(tempfile.mkdtemp()) / "llm_calls.jsonl"   # las llamadas falsas no ensucian las estadisticas reales
 
 
 def check(name, ok):

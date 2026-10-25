@@ -330,7 +330,10 @@ async function ask(text) {
 }
 
 let lastQuiet = 0, rec = null, chunks = [], stream = null, audioCtx = null, meter = 0, heard = false, maxRms = 0, micLevel = 0;
+function warmUp() { api("/calentar", {}).catch(() => {}); }
+warmUp();
 async function listen() {
+  warmUp();
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     say("El micrófono necesita HTTPS. Usa la dirección https de Tailscale.", 9000); return;
   }

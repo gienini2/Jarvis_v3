@@ -1,0 +1,8 @@
+{
+ "fecha": "20261025",
+ "modelos": {
+  "groq/openai/gpt-oss-20b": 93.0,
+  "groq/openai/gpt-oss-120b": 92.0,
+  "groq/qwen/qwen3.8-27b": 90.3
+ }
+}

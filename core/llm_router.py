@@ -7,7 +7,7 @@ from pathlib import Path
 import requests
 
 from config.settings import settings
-from core import llm_stats
+from core import llm_stats, model_stats
 from core.privacy import LOCAL_PROVIDERS, is_forced
 from core.backend_state import set_backend
 from core.llm_health import health_manager
@@ -32,16 +32,21 @@ SCORES_PATH = CONFIG_PATH.with_name("puntuaciones_locales.json")
 MIN_RELIABLE_SCORE = 40   # un modelo local que puntua menos en tool-calling no se usa para herramientas
 
 
-def _apply_measured_scores(providers: dict, path: Path = SCORES_PATH):
-    """El orden de los modelos locales para herramientas lo marca su puntuacion medida (scripts/eval_modelos_locales.py --aplicar)."""
-    if not path.exists():
-        return
-    scores = json.loads(path.read_text(encoding="utf-8")).get("modelos", {})
-    for model in providers.get("ollama", {}).get("models", []):
-        score = scores.get(model["name"])
-        if score is not None:
-            model["measured_score"] = score
-            model.setdefault("role_priority", {})["tools"] = score
+def _apply_measured_scores(providers: dict, path: Path = SCORES_PATH, cloud_path: Path | None = None):
+    """El orden de los modelos para herramientas lo marca su puntuacion medida (eval_modelos_locales.py --aplicar / calibrar_modelos.py)."""
+    cloud_path = cloud_path or path.with_name("puntuaciones_nube.json")
+    for provider_name, file, keyed in (("ollama", path, False), ("*", cloud_path, True)):
+        if not file.exists():
+            continue
+        scores = json.loads(file.read_text(encoding="utf-8")).get("modelos", {})
+        for name, config in providers.items():
+            if (name == "ollama") == keyed:
+                continue
+            for model in config.get("models", []):
+                score = scores.get(f"{name}/{model['name']}" if keyed else model["name"])
+                if score is not None:
+                    model["measured_score"] = score
+                    model.setdefault("role_priority", {})["tools"] = score
 
 
 _apply_measured_scores(_PROVIDERS_CONFIG)
@@ -126,7 +131,8 @@ def _power_score(provider_config: dict, model_config: dict, requirements: dict) 
 def _score(provider_name: str, provider_config: dict, model_config: dict, requirements: dict) -> float:
     """Potencia + disponibilidad. La cascada sigue siendo 'el mas potente primero',
     pero un proveedor degradado (lento o fallando) cede el puesto al siguiente."""
-    return _power_score(provider_config, model_config, requirements) + _availability_adjustment(provider_name)
+    return (_power_score(provider_config, model_config, requirements) + _availability_adjustment(provider_name)
+            + model_stats.adjustment(provider_name, model_config["name"]))
 
 
 def _discard_reason(provider_name: str, provider_config: dict, model_config: dict, requirements: dict, ignore_health: bool = False) -> str:
@@ -291,4 +297,4 @@ def warm_local():
     best = find_models({"role": "tools", "tools": True, "local_only": True}, ignore_health=True)
     if best:
         requests.post(settings.OLLAMA_URL,
-                      json={"model": best[0]["model"], "keep_alive": "20m"}, timeout=120)
+                      json={"model": best[0]["model"], "keep_alive": settings.OLLAMA_KEEP_ALIVE}, timeout=120)

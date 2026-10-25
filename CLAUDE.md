@@ -215,11 +215,14 @@ Si un ID configurado desaparece, el modelo deja de servir.
   arquitectura vieja "solo local + Anthropic"; DB puesta como `jarvis_v2`).
 - `POSTGRES_PASSWORD` en texto plano; credenciales Garmin en `.env` en claro.
 - Alpha50: rate-limit 429 de Garmin sin resolver.
-- **Evaluar los modelos locales** (`qwen2.5:7b` vs `dolphin3:8b`, y quiza `llama3.2`/`mistral:7b`, ya instalados) con un script de
-  casos de tool-calling (sin ejecutar nada: herramienta correcta, JSON valido, sin inventar tools, español, latencia) y reordenar
-  el respaldo local en `providers.json`; es el cerebro del modo privado. Pedido por Juan Pablo el 2026-10-27; aun sin hacer.
+- **Modelos locales (evaluados 2026-10-25, `scripts/eval_modelos_locales.py --aplicar`)**: el orden para herramientas lo marca la puntuacion
+  medida en `config/puntuaciones_locales.json` (el router la usa como `role_priority.tools`; <40 = no fiable, se descarta). Orden: qwen3:8b 96.6,
+  qwen3.5:9b 94.9, ministral-3:8b 93.0, dolphin3:8b 91.9 (herramientas emuladas), qwen2.5:7b 90.3, hermes3:8b 84.7. Los modelos sin plantilla de
+  herramientas (dolphin) o que no las llaman (mistral, `"tool_mode": "emulated"`) usan `core/tool_emulation.py`. Repetir la evaluacion al cambiar modelos.
+- **Alpha50** solo atiende mensajes que EMPIEZAN por `/alpha50` (`alpha50/scheduler.py`); su pregunta pendiente caduca a las 2 h. El relay de Figaro
+  reenvia `/alpha50` (desplegado 2026-10-25; copias `.bak.20261025-1214` en `/opt/jarvis-relay/`).
+- Fase 3 de WhatsApp hecha: `resumir_chat` y `redactar_como_yo` (`core/chat_private.py`, privadas; estilo indexado con `scripts/indexar_estilo.py`).
 - Voz privada: Whisper local (faster-whisper en CPU) para poder hablar en modo privado; opcional, puede chocar con el bloqueo de DLL de Windows.
-- Fase 3 de WhatsApp: resumir un chat y «redactar como yo» con herramientas privadas (todo local).
 - TLS de Fígaro: cert de Tailscale en `/etc/ssl/figaro-server.taild7b9e6.ts.net.crt`,
   servido por nginx (proxy a node `/opt/mando` `:10003`). Auto-renovación por cron
   semanal (`/etc/cron.d/tailscale-cert-renew`). Si falla TLS, revisar ese cron y

@@ -48,11 +48,11 @@ class GroqProvider(BaseProvider):
         body = {
             "model": request.model,
             "messages": request.prompt,
-            "tools": request.tools,
-            "tool_choice": "auto",
             "temperature": settings.LLM_TEMPERATURE,
             "max_tokens": settings.LLM_MAX_TOKENS,
         }
+        if request.tools:
+            body.update(tools=request.tools, tool_choice="auto")
         if channel.is_voice() and request.model.startswith("openai/gpt-oss"):
             body["reasoning_effort"] = "low"   # por voz importa mas la rapidez que razonar a fondo
         try:

@@ -41,11 +41,11 @@ class NvidiaProvider(BaseProvider):
         payload = {
             "model": request.model,
             "messages": request.prompt,
-            "tools": request.tools,
-            "tool_choice": "auto",
             "temperature": settings.LLM_TEMPERATURE,
             "max_tokens": settings.LLM_MAX_TOKENS,
         }
+        if request.tools:
+            payload.update(tools=request.tools, tool_choice="auto")
         try:
             response = requests.post(
                 "https://integrate.api.nvidia.com/v1/chat/completions",

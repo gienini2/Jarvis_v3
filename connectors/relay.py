@@ -17,7 +17,7 @@ import httpx
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
 # ---------------------------------------------------------------------------
 # Config
@@ -210,6 +210,7 @@ async def run_bot():
         try:
             telegram_app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
             telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+            telegram_app.add_handler(CommandHandler("alpha50", handle_message))
             async with telegram_app:
                 await telegram_app.start()
                 await telegram_app.updater.start_polling(drop_pending_updates=True)

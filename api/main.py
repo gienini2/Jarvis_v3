@@ -89,6 +89,7 @@ app.include_router(openai_router, prefix="/v1")
 
 class ChatRequest(BaseModel):
     message: str
+    canal: str = ""
 
 
 class ContextRequest(BaseModel):
@@ -225,7 +226,12 @@ def modelos():
 def chat(req: ChatRequest):
     # Alpha50 ya se resuelve dentro de process() (core/processor.py), común a
     # todas las interfaces. No hace falta llamar al handler aquí también.
-    response, intent_type = process(req.message)
+    from core import channel
+    channel.set_channel(req.canal)
+    try:
+        response, intent_type = process(req.message)
+    finally:
+        channel.reset()
     return JSONResponse(
         content={"response": response, "intent": intent_type},
         media_type="application/json; charset=utf-8",

@@ -11,7 +11,7 @@ from config.settings import settings
 from core.llm_types import LLMRequest
 from core import domains
 from core import llm_router as router
-from core import llm_stats, privacy
+from core import channel, llm_stats, privacy
 from core.tools import TOOLS, call_tool, light_tools
 
 log = logging.getLogger("jarvis.agent")
@@ -161,6 +161,8 @@ def _run(user_prompt: str, turn: dict) -> str:
     picked_at = time.monotonic()
     tools, system_prompt = _pick(user_prompt, _previous_user(history, user_prompt), turn)
     turn["pick_s"] = time.monotonic() - picked_at
+    if channel.is_voice():
+        system_prompt += channel.VOICE_HINT
 
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(history)
@@ -209,7 +211,7 @@ def _run(user_prompt: str, turn: dict) -> str:
                 # Escape de la rama ligera: recargar el set completo para las
                 # siguientes rondas (una ronda extra, sin perder capacidad).
                 tools = TOOLS
-                messages[0]["content"] = AGENT_SYSTEM_PROMPT
+                messages[0]["content"] = AGENT_SYSTEM_PROMPT + (channel.VOICE_HINT if channel.is_voice() else "")
                 turn["escaped"] = True
                 messages.append({
                     "role": "tool", "tool_call_id": tc["id"],

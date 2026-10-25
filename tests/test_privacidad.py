@@ -89,6 +89,17 @@ agent.call_tool = lambda name, args: called.append(name) or {"estado": "pendient
 answer = agent.run("escribe a ana")
 check("un borrador enseñado sin crearlo obliga a llamar a preparar_mensaje", called == ["preparar_mensaje"] and answer == "Borrador listo")
 
+print("Canal de voz")
+from core import channel
+groq, ollama = setup([{"content": "vale"}])
+channel.set_channel("voz")
+agent.run("hola")
+channel.reset()
+check("con canal voz el prompt pide respuestas cortas", any("MODO VOZ" in s for s in groq.seen))
+groq, ollama = setup([{"content": "vale"}])
+agent.run("hola")
+check("sin canal voz no se anade", all("MODO VOZ" not in s for s in groq.seen))
+
 print("Modo privado (procesador)")
 import core.processor as proc
 proc._warm_local = lambda: None

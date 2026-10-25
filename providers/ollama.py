@@ -14,10 +14,14 @@ _TOOL_SUPPORT: dict[str, bool] = {}
 _PROVIDERS_JSON = Path(__file__).resolve().parents[1] / "config" / "providers.json"
 
 
+def _models_where(key: str, value=True) -> set[str]:
+    models = json.loads(_PROVIDERS_JSON.read_text(encoding="utf-8"))["providers"].get("ollama", {}).get("models", [])
+    return {m["name"] for m in models if m.get(key) == value}
+
+
 def _forced_emulation() -> set[str]:
     """Modelos que dicen tener 'tools' pero no las llaman (p. ej. mistral:7b): providers.json -> "tool_mode": "emulated"."""
-    models = json.loads(_PROVIDERS_JSON.read_text(encoding="utf-8"))["providers"].get("ollama", {}).get("models", [])
-    return {m["name"] for m in models if m.get("tool_mode") == "emulated"}
+    return _models_where("tool_mode", "emulated")
 
 
 class OllamaProvider(BaseProvider):
@@ -139,20 +143,23 @@ class OllamaProvider(BaseProvider):
     def _chat_native(self, request):
         started = time.monotonic()
         chat_url = settings.OLLAMA_URL.replace("/api/generate", "/api/chat")
+        body = {
+            "model": request.model,
+            "messages": self._adapt_messages(request.prompt),
+            "tools": request.tools,
+            "stream": False,
+            "options": {
+                "num_gpu": 99,
+                "num_ctx": settings.OLLAMA_NUM_CTX,
+                "temperature": settings.LLM_TEMPERATURE,
+            },
+        }
+        if request.model in _models_where("no_think"):
+            body["think"] = False
         try:
             response = requests.post(
                 chat_url,
-                json={
-                    "model": request.model,
-                    "messages": self._adapt_messages(request.prompt),
-                    "tools": request.tools,
-                    "stream": False,
-                    "options": {
-                        "num_gpu": 99,
-                        "num_ctx": settings.OLLAMA_NUM_CTX,
-                        "temperature": settings.LLM_TEMPERATURE,
-                    },
-                },
+                json=body,
                 timeout=settings.TIMEOUT,
             )
             raise_with_body(response)

@@ -302,6 +302,76 @@
           "stream": true,
           "vision": false,
           "embeddings": false
+        },
+        {
+          "name": "qwen3:8b",
+          "display_name": "Qwen3 8B",
+          "roles": [
+            "general",
+            "tools"
+          ],
+          "priority": 85,
+          "context": 32768,
+          "reasoning": 6,
+          "coding": 6,
+          "speed": 6,
+          "tools": true,
+          "stream": true,
+          "vision": false,
+          "embeddings": false,
+          "no_think": true
+        },
+        {
+          "name": "qwen3.5:9b",
+          "display_name": "Qwen3.5 9B",
+          "roles": [
+            "general",
+            "tools"
+          ],
+          "priority": 84,
+          "context": 32768,
+          "reasoning": 6,
+          "coding": 6,
+          "speed": 6,
+          "tools": true,
+          "stream": true,
+          "vision": false,
+          "embeddings": false,
+          "no_think": true
+        },
+        {
+          "name": "ministral-3:8b",
+          "display_name": "Ministral 3 8B",
+          "roles": [
+            "general",
+            "tools"
+          ],
+          "priority": 82,
+          "context": 32768,
+          "reasoning": 6,
+          "coding": 6,
+          "speed": 6,
+          "tools": true,
+          "stream": true,
+          "vision": false,
+          "embeddings": false
+        },
+        {
+          "name": "hermes3:8b",
+          "display_name": "Hermes 3 8B",
+          "roles": [
+            "general",
+            "tools"
+          ],
+          "priority": 74,
+          "context": 32768,
+          "reasoning": 6,
+          "coding": 6,
+          "speed": 6,
+          "tools": true,
+          "stream": true,
+          "vision": false,
+          "embeddings": false
         }
       ]
     },

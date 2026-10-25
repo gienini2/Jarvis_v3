@@ -369,7 +369,7 @@ function splitBackend(s) {
 function setBackendBadge(turn, backend) {
   const bubble = turn.querySelector(".bubble");
   if (!bubble) return;
-  const icon = BACKEND_ICONS[backend] || "🤖";
+  const icon = BACKEND_ICONS[backend] || (backend.endsWith("-local") ? "🏠" : "🤖");
   const name = BACKEND_NAMES[backend] || backend;
   const tag = document.createElement("div");
   tag.className = "tag";

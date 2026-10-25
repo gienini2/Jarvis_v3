@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from dataclasses import replace
 from pathlib import Path
 
@@ -96,7 +97,10 @@ def _requirements_from_request(request: LLMRequest) -> dict:
     return requirements
 
 
-def _backend_label(provider_name: str) -> str:
+def _backend_label(provider_name: str, model: str = "") -> str:
+    """Los locales se etiquetan con el modelo real que respondio (p. ej. qwen3-8b-local), no con uno fijo."""
+    if provider_name in LOCAL_PROVIDERS and model:
+        return re.sub(r"[^a-z0-9_-]", "-", model.lower()) + "-local"
     return _BACKEND_LABELS.get(provider_name, provider_name)
 
 
@@ -202,7 +206,7 @@ def _call_candidates(request: LLMRequest, use_tools: bool):
         llm_stats.record_call(result, requirements.get("role", ""), len(request.tools or []))
         if result.success:
             health_manager.record_success(provider_name, result.latency)
-            set_backend(_backend_label(provider_name))
+            set_backend(_backend_label(provider_name, candidate["model"]))
             return result
         # Cualquier fallo (429 rate-limit, 5xx, timeout) resta disponibilidad en el
         # scoring; una caida de red ademas tumba al proveedor (filtro duro).

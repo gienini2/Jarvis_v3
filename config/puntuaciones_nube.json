@@ -3,6 +3,8 @@
  "modelos": {
   "groq/openai/gpt-oss-20b": 93.0,
   "groq/openai/gpt-oss-120b": 92.0,
-  "groq/qwen/qwen3.8-27b": 90.3
+  "groq/qwen/qwen3.8-27b": 90.3,
+  "nvidia/nvidia/nemotron-3.5-bolt-e4b": 88.7,
+  "nvidia/nvidia/nemotron-3-ultra-550b-a55b": 89.2
  }
 }

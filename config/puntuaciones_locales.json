@@ -1,0 +1,21 @@
+{
+ "fecha": "20261025-0438",
+ "modelos": {
+  "qwen2.5:7b": 90.3,
+  "mistral:7b": 59.7,
+  "dolphin3:8b": 89.2,
+  "llama3.2:latest": 83.4,
+  "llama3:8b": 59.4,
+  "qwen3:8b": 96.6,
+  "llama3.1:8b": 80.6,
+  "hermes3:8b": 84.7,
+  "granite3.3:8b": 38.8,
+  "llama3-groq-tool-use:8b": 66.3,
+  "command-r7b": 39.1,
+  "ministral-3:8b": 93.0,
+  "gemma4:e4b": 77.7,
+  "phi4-mini": 39.5,
+  "qwen3:4b": 80.0,
+  "qwen3.5:9b": 94.9
+ }
+}

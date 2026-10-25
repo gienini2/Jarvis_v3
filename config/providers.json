@@ -138,7 +138,8 @@
           "tools": true,
           "stream": false,
           "vision": false,
-          "embeddings": false
+          "embeddings": false,
+          "cascade_bonus": -40
         },
         {
           "name": "nvidia/nemotron-3.5-bolt-e4b",
@@ -198,22 +199,6 @@
           "embeddings": false
         },
         {
-          "name": "deepseek-r1:7b",
-          "display_name": "DeepSeek-R1 7B",
-          "roles": [
-            "reasoning"
-          ],
-          "priority": 72,
-          "context": 131072,
-          "reasoning": 8,
-          "coding": 7,
-          "speed": 5,
-          "tools": false,
-          "stream": true,
-          "vision": false,
-          "embeddings": false
-        },
-        {
           "name": "gemma3:latest",
           "display_name": "Gemma 3 (vision local)",
           "roles": [
@@ -251,24 +236,6 @@
           }
         },
         {
-          "name": "mistral:7b",
-          "display_name": "Mistral 7B",
-          "tool_mode": "emulated",
-          "roles": [
-            "general",
-            "tools"
-          ],
-          "priority": 76,
-          "context": 32768,
-          "reasoning": 5,
-          "coding": 5,
-          "speed": 6,
-          "tools": true,
-          "stream": true,
-          "vision": false,
-          "embeddings": false
-        },
-        {
           "name": "qwen3:8b",
           "display_name": "Qwen3 8B",
           "roles": [
@@ -284,7 +251,8 @@
           "stream": true,
           "vision": false,
           "embeddings": false,
-          "no_think": true
+          "no_think": true,
+          "cascade_bonus": 45
         },
         {
           "name": "qwen3.5:9b",
@@ -312,23 +280,6 @@
             "tools"
           ],
           "priority": 82,
-          "context": 32768,
-          "reasoning": 6,
-          "coding": 6,
-          "speed": 6,
-          "tools": true,
-          "stream": true,
-          "vision": false,
-          "embeddings": false
-        },
-        {
-          "name": "hermes3:8b",
-          "display_name": "Hermes 3 8B",
-          "roles": [
-            "general",
-            "tools"
-          ],
-          "priority": 74,
           "context": 32768,
           "reasoning": 6,
           "coding": 6,

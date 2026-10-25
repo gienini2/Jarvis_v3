@@ -125,7 +125,7 @@ def _power_score(provider_config: dict, model_config: dict, requirements: dict) 
     else:
         capability_bonus = model_config.get("speed", 0)
     priority = (model_config.get("role_priority") or {}).get(role, model_config.get("priority", 0))
-    return provider_config.get("priority", 0) + priority + capability_bonus
+    return provider_config.get("priority", 0) + priority + capability_bonus + model_config.get("cascade_bonus", 0)
 
 
 def _score(provider_name: str, provider_config: dict, model_config: dict, requirements: dict) -> float:

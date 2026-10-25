@@ -58,6 +58,13 @@ check("un local toma su puntuacion para herramientas", find("ollama", "qwen3:8b"
 check("un modelo de nube toma la suya (clave proveedor/modelo)", find("groq", "openai/gpt-oss-20b")["role_priority"]["tools"] == 93)
 check("el que no tiene puntuacion conserva su prioridad", "measured_score" not in find("groq", "openai/gpt-oss-120b"))
 
+print("Prima de cascada")
+base_cfg = {"priority": 50}
+model = {"name": "x", "priority": 80, "speed": 6}
+plain = router._power_score(base_cfg, model, {"role": "tools"})
+boosted = router._power_score(base_cfg, {**model, "cascade_bonus": 45}, {"role": "tools"})
+check("cascade_bonus suma o resta puntos al modelo", boosted - plain == 45)
+
 print("Recalibracion")
 import calibrar_modelos as cal
 path = tmp / "mezcla.json"

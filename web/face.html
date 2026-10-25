@@ -322,6 +322,7 @@ async function ask(text) {
     const t0 = performance.now();
     const d = await api("/chat", { message: text, canal: "voz" });
     timing.jarvis = performance.now() - t0; timing.replyAt = performance.now();
+    timing.modelo = modelLabel(d.response || "");
     reply(d.response || "");
   } catch (e) {
     emotion = "worried"; state = "idle"; emoUntil = Date.now() + 5000; say("No he podido hablar con Jarvis: " + e.message);
@@ -364,10 +365,19 @@ async function listen() {
     if ((heard && now - quietSince > SILENCE_MS) || (!heard && now - started > 8000) || now - started > 20000) stopListening();
   }, 100);
 }
+const FAMILY_ICONS = [[/^qwen/, "👑🏠"], [/^(mistral|ministral)/, "🌬️🏠"], [/^dolphin/, "🐬"]];
+function modelLabel(text) {
+  const m = String(text).match(/^\s*\[(🔒\s*)?([a-z0-9_-]+)\]/i);
+  if (!m) return "";
+  const name = m[2].toLowerCase();
+  const fixed = { groq: "⚡", nvidia: "🟢", kimi: "🌙", local: "💻" }[name];
+  const fam = FAMILY_ICONS.find(([re]) => re.test(name));
+  return (m[1] ? "🔒 " : "") + (fixed || (fam && fam[1]) || (name.endsWith("-local") ? "🏠" : "🤖")) + " " + name;
+}
 function showTiming() {
   const f = (ms) => (ms == null ? "–" : (ms / 1000).toFixed(1));
   const total = (timing.silencio || 0) + (timing.transcr || 0) + (timing.jarvis || 0) + (timing.voz || 0);
-  $("#timing").textContent = `⏱ silencio ${f(timing.silencio)} · transcr ${f(timing.transcr)} · Jarvis ${f(timing.jarvis)} · voz ${f(timing.voz)} = ${f(total)} s`;
+  $("#timing").textContent = `⏱ silencio ${f(timing.silencio)} · transcr ${f(timing.transcr)} · Jarvis ${f(timing.jarvis)} · voz ${f(timing.voz)} = ${f(total)} s${timing.modelo ? " · " + timing.modelo : ""}`;
   timing = {};
 }
 function stopListening() {

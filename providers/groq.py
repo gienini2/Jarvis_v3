@@ -7,6 +7,8 @@ from core import channel
 from core.llm_types import ProviderResult
 from providers.base import BaseProvider, raise_with_body, openai_content, usage_from
 
+_SESSION = requests.Session()   # reutiliza la conexion TLS entre llamadas (el saludo cuesta ~0,3 s en cada una)
+
 
 class GroqProvider(BaseProvider):
     name = "groq"
@@ -21,7 +23,7 @@ class GroqProvider(BaseProvider):
         # y lectura mas larga (la vision tarda mas que el texto).
         prompt_text = request.prompt if images else build_prompt(request.prompt, request.rag)
         try:
-            response = requests.post(
+            response = _SESSION.post(
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers=self._headers(),
                 json={
@@ -52,7 +54,7 @@ class GroqProvider(BaseProvider):
         if channel.is_voice() and request.model.startswith("openai/gpt-oss"):
             body["reasoning_effort"] = "low"   # por voz importa mas la rapidez que razonar a fondo
         try:
-            response = requests.post(
+            response = _SESSION.post(
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers=self._headers(),
                 json=body,

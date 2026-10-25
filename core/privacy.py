@@ -9,7 +9,7 @@ import threading
 from pathlib import Path
 
 LOCAL_PROVIDERS = {"ollama"}
-PRIVATE_TOOLS: set[str] = set()
+PRIVATE_TOOLS: set[str] = {"resumir_chat", "redactar_como_yo"}
 PLACEHOLDER = "[respuesta privada: no se guarda]"
 PLACEHOLDER_USER = "[mensaje privado: no se guarda]"
 MAX_PRIVATE_RESULT_CHARS = 5000   # el contexto local es de 4096 tokens

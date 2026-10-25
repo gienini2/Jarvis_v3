@@ -585,7 +585,10 @@ TOOLS = [
 from core.contacts import (TOOL_SCHEMAS as _CONTACT_SCHEMAS, buscar_contacto, contactos_sin_hablar, preparar_correo_directo,
                            preparar_mensaje, ultimo_contacto)
 
+from core.chat_private import TOOL_SCHEMAS as _CHAT_SCHEMAS, redactar_como_yo, resumir_chat
+
 TOOLS.extend(_CONTACT_SCHEMAS)
+TOOLS.extend(_CHAT_SCHEMAS)
 
 LIGHT_TOOL_NAMES = {"search_memory", "remember", "query_tasks"}
 
@@ -1130,6 +1133,8 @@ FUNCTIONS = {
     "buscar_contacto": buscar_contacto,
     "preparar_mensaje": preparar_mensaje,
     "ultimo_contacto": ultimo_contacto,
+    "resumir_chat": resumir_chat,
+    "redactar_como_yo": redactar_como_yo,
     "contactos_sin_hablar": contactos_sin_hablar,
     "create_calendar_event": create_calendar_event,
     "find_calendar_events": find_calendar_events,

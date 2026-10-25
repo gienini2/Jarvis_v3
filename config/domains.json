@@ -323,9 +323,11 @@
         "buscar_contacto",
         "preparar_mensaje",
         "ultimo_contacto",
-        "contactos_sin_hablar"
+        "contactos_sin_hablar",
+        "resumir_chat",
+        "redactar_como_yo"
       ],
-      "prompt": "Para mandar un mensaje a alguien de la agenda: buscar_contacto (si hay varios parecidos, pregunta cual), luego preparar_mensaje por 'whatsapp' o 'correo' y ensena el borrador. NO se envia hasta que el usuario conteste 'si'. No conoces numeros ni correos: no los inventes. Si el usuario pide ver un telefono o correo, di que no los manejas y ofrece preparar el mensaje. Para saber cuando hablaste con alguien o con quien llevas tiempo sin hablar usa ultimo_contacto / contactos_sin_hablar (solo dan fechas, nunca el contenido de los chats).",
+      "prompt": "Para mandar un mensaje a alguien de la agenda: buscar_contacto (si hay varios parecidos, pregunta cual), luego preparar_mensaje por 'whatsapp' o 'correo' y ensena el borrador. NO se envia hasta que el usuario conteste 'si'. No conoces numeros ni correos: no los inventes. Si el usuario pide ver un telefono o correo, di que no los manejas y ofrece preparar el mensaje. Para saber cuando hablaste con alguien o con quien llevas tiempo sin hablar usa ultimo_contacto / contactos_sin_hablar (solo dan fechas, nunca el contenido de los chats). Para resumir tu conversacion con alguien usa resumir_chat; para escribir un mensaje con tu estilo usa redactar_como_yo (te da ejemplos de como escribes) y ensena el borrador antes de preparar_mensaje. Estas dos herramientas leen chats privados: no repitas mensajes literales largos.",
       "examples": [
         "mándale un whatsapp a María diciendo que llego tarde",
         "escribe a Carlos por WhatsApp que ya estoy en camino",
@@ -344,7 +346,13 @@
         "hace cuánto que no hablo con Pedro",
         "a quién debería escribir hoy",
         "quién me escribió lo último",
-        "cuánto hablamos Luis y yo"
+        "cuánto hablamos Luis y yo",
+        "resúmeme mi chat con Marta",
+        "de qué hablamos Pedro y yo el mes pasado",
+        "qué quedó pendiente con Luis en WhatsApp",
+        "redáctale a Ana un mensaje como lo haría yo para quedar el sábado",
+        "escríbele a Carlos con mi estilo que no llego",
+        "contéstale a mi hermana como yo suelo hacerlo"
       ],
       "hints": "whatsapp|wasap|guasap|\\bcontacto\\b|agenda|m[aá]ndale|escr[ií]bele|d[ií]le a|avisa a|[uú]ltima vez|sin hablar|hablado con|hablo con"
     }

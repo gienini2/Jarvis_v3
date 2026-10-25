@@ -3,6 +3,7 @@ core/agent.py
 Tool-calling agent. Provider selection lives in core/llm_router.py.
 """
 import json
+import re
 import logging
 import time
 
@@ -131,6 +132,10 @@ def _pick(user_prompt: str, previous_user: str, turn: dict) -> tuple[list, str]:
     return tools, AGENT_SYSTEM_PROMPT
 
 
+_FAKE_DRAFT = re.compile(r"(responde|contesta)\W+s[ií]\W+o\W+no|¿quieres (que lo )?env[ií]e?(lo|s)", re.I)
+DRAFT_TOOLS = {"preparar_mensaje", "preparar_correo_directo"}
+
+
 def run(user_prompt: str) -> str:
     turn = {"branch": "", "domains": [], "score": 0.0, "escaped": False,
             "rounds": 0, "tools": [], "pick_s": 0.0, "tool_s": 0.0}
@@ -171,7 +176,15 @@ def _run(user_prompt: str, turn: dict) -> str:
         tool_calls = message.get("tool_calls")
 
         if not tool_calls:
-            return message.get("content", "") or "No obtuve respuesta del modelo."
+            answer = message.get("content", "") or "No obtuve respuesta del modelo."
+            if _FAKE_DRAFT.search(answer) and not DRAFT_TOOLS & set(executed) and not turn.get("nudged"):
+                # El modelo enseno un "borrador" sin crearlo: un si/no posterior no tendria nada que confirmar.
+                turn["nudged"] = True
+                messages.append({"role": "assistant", "content": answer})
+                messages.append({"role": "user", "content": "[sistema] Ese borrador NO existe todavia: no has llamado a preparar_mensaje. "
+                                                            "Llamala ahora con el contacto y el texto, y luego ensena el borrador."})
+                continue
+            return answer
 
         # Ollama no pone 'id' en sus tool_calls; Groq/NVIDIA si. Si una ronda la
         # resuelve Ollama y la siguiente cambia a un provider OpenAI-estricto, el

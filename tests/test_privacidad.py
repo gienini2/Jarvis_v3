@@ -82,6 +82,13 @@ except Exception:
     raised = True
 check("con Ollama caido falla y NO se reintenta en la nube", raised and all(SECRET not in s for s in groq.seen))
 
+print("Borrador falso")
+groq, ollama = setup([{"content": "Borrador del mensaje a Ana: hola. ¿Quieres enviarlo? (Responde si o no)"}, tool_call("preparar_mensaje"), {"content": "Borrador listo"}])
+called = []
+agent.call_tool = lambda name, args: called.append(name) or {"estado": "pendiente_de_confirmacion"}
+answer = agent.run("escribe a ana")
+check("un borrador enseñado sin crearlo obliga a llamar a preparar_mensaje", called == ["preparar_mensaje"] and answer == "Borrador listo")
+
 print("Modo privado (procesador)")
 import core.processor as proc
 proc._warm_local = lambda: None

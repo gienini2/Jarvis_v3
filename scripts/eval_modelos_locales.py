@@ -3,11 +3,12 @@
 NO ejecuta ninguna herramienta: solo mira que herramienta pediria cada modelo, con las MISMAS herramientas y prompt de
 sistema que le daria Jarvis segun el tema del caso (core/domains.py); los modelos sin herramientas nativas se miden con la emulacion (core/tool_emulation.py). Usa solo frases inventadas.
 Uso:
-  python scripts/eval_modelos_locales.py --modelos qwen2.5:7b,mistral:7b [--reps 3] [--limite 20] [--pull] [--descargar] [--aplicar]
+  python scripts/eval_modelos_locales.py --modelos qwen2.5:7b,mistral:7b [--reps 3] [--limite 20] [--pull] [--descargar] [--aplicar] [--proveedor groq|nvidia]
 Puntuacion = 100 * (0.50*herramienta + 0.20*argumentos + 0.10*(1-alucinaciones) + 0.10*consistencia + 0.10*velocidad)
   velocidad = 1 - mediana_de_latencia/10 s (acotada a 0..1). Resultados en data/eval_modelos_FECHA.json y .md
 """
 import json
+import re
 import statistics
 import sys
 import time
@@ -58,7 +59,35 @@ def pull(model: str):
                 raise RuntimeError(data["error"])
 
 
-def ask(model: str, case: dict, thinking: bool, emulated: bool = False):
+TOKEN_BUDGET_PER_MIN = 6000   # Groq gratis: 8000 tokens/min por modelo; dejamos margen
+RETRY_IN = re.compile(r"try again in ([0-9.]+)(m?s)", re.I)
+
+
+def ask_cloud(provider: str, model: str, case: dict):
+    """Mismo caso y mismas herramientas, pero contra un proveedor de nube; pausa para no pasar del limite gratuito."""
+    from core.llm_types import LLMRequest
+    from providers.registry import PROVIDERS
+    domain = case["dominio"]
+    offered = domains.tools_for([domain])
+    messages = [{"role": "system", "content": domains.system_prompt([domain], case["prompt"])}, {"role": "user", "content": case["prompt"]}]
+    for attempt in range(4):
+        res = PROVIDERS[provider].chat_tools(LLMRequest(prompt=messages, tools=offered, model=model))
+        if res.success:
+            used = (res.usage or {}).get("in", 1500) + (res.usage or {}).get("out", 100)
+            time.sleep(used / TOKEN_BUDGET_PER_MIN * 60 if provider == "groq" else 1.5)
+            return {"message": res.response, "wall": res.latency, "eval_count": (res.usage or {}).get("out", 0),
+                    "eval_s": res.latency, "prompt_tokens": (res.usage or {}).get("in", 0)}, offered
+        wait = RETRY_IN.search(str(res.exception))
+        if "429" not in str(res.exception) and not wait:
+            return {"error": str(res.exception)[:200], "wall": res.latency}, offered
+        seconds = (float(wait.group(1)) / (1000 if wait.group(2).lower() == "ms" else 1)) if wait else 20
+        time.sleep(seconds + 2)
+    return {"error": "429 sin recuperar tras 4 intentos", "wall": 0}, offered
+
+
+def ask(model: str, case: dict, thinking: bool, emulated: bool = False, provider: str | None = None):
+    if provider:
+        return ask_cloud(provider, model, case)
     domain = case["dominio"]
     offered = domains.tools_for([domain])
     system = domains.system_prompt([domain], case["prompt"])
@@ -130,18 +159,21 @@ def score_case(case, result, offered):
     return out
 
 
-def evaluate(model: str, cases: list[dict], reps: int):
-    caps = capabilities(model)
-    from providers.ollama import OllamaProvider
-    emulated = not OllamaProvider._supports_tools(model)
-    thinking = "thinking" in caps
-    ask(model, cases[0], thinking, emulated)   # calentamiento (carga el modelo): no puntua
+def evaluate(model: str, cases: list[dict], reps: int, provider: str | None = None):
+    if provider:
+        caps, emulated, thinking = [], False, False
+    else:
+        caps = capabilities(model)
+        from providers.ollama import OllamaProvider
+        emulated = not OllamaProvider._supports_tools(model)
+        thinking = "thinking" in caps
+        ask(model, cases[0], thinking, emulated)   # calentamiento (carga el modelo): no puntua
     per_case, lat, tps = [], [], []
     t0 = time.monotonic()
     for i, case in enumerate(cases, 1):
         runs = []
         for _ in range(reps):
-            result, offered = ask(model, case, thinking, emulated)
+            result, offered = ask(model, case, thinking, emulated, provider)
             sc = score_case(case, result, offered)
             runs.append(sc)
             if "wall" in result and "error" not in result:
@@ -156,8 +188,10 @@ def evaluate(model: str, cases: list[dict], reps: int):
     chat = [r for c in per_case if not c["esperado"] for r in c["runs"]]
     arg_runs = [r for r in with_tool if "args_ok" in r]
     consistent = [len({tuple(r["names"][:1]) for r in c["runs"]}) == 1 for c in per_case]
-    ps = requests.get(f"{OLLAMA}/api/ps", timeout=10).json().get("models", [])
-    mine = next((m for m in ps if m["name"] == model), {})
+    mine = {}
+    if not provider:
+        ps = requests.get(f"{OLLAMA}/api/ps", timeout=10).json().get("models", [])
+        mine = next((m for m in ps if m["name"] == model), {})
     summary = {
         "herramienta": sum(r["ok_tool"] for r in flat) / len(flat),
         "herramienta_con_tool": sum(r["ok_tool"] for r in with_tool) / max(1, len(with_tool)),
@@ -175,7 +209,7 @@ def evaluate(model: str, cases: list[dict], reps: int):
     summary["puntuacion"] = round(100 * (.5 * summary["herramienta"] + .2 * summary["argumentos"] + .1 * (1 - summary["alucinaciones"])
                                          + .1 * summary["consistencia"] + .1 * speed), 1)
     summary["emulado"] = emulated
-    return {"modelo": model, "resumen": summary, "casos": per_case, "capacidades": caps}
+    return {"modelo": f"{provider}/{model}" if provider else model, "proveedor": provider, "resumen": summary, "casos": per_case, "capacidades": caps}
 
 
 def main():
@@ -186,32 +220,36 @@ def main():
     cases = json.loads(Path(opt("--casos", ROOT / "tests" / "tool_cases.json")).read_text(encoding="utf-8"))
     if limit:
         cases = cases[:int(limit)]
+    provider = opt("--proveedor")
     results = []
     for model in models:
         print(f"\n=== {model} ({len(cases)} casos x {reps} repeticiones)", flush=True)
         try:
-            if model not in installed():
+            if provider:
+                results.append(evaluate(model, cases, reps, provider))
+            elif model not in installed():
                 if "--pull" not in argv:
                     print("  no esta instalado (usa --pull para descargarlo)")
                     continue
                 pull(model)
-            results.append(evaluate(model, cases, reps))
+            if not provider:
+                results.append(evaluate(model, cases, reps))
         except Exception as e:
             print(f"  fallo: {e}")
             results.append({"modelo": model, "fallo": str(e)})
-        if "--descargar" in argv:
+        if "--descargar" in argv and not provider:
             requests.post(f"{OLLAMA}/api/generate", json={"model": model, "keep_alive": 0}, timeout=60)
         last = results[-1]
         if "resumen" in last:
             s = last["resumen"]
             print(f"  {'[emulado] ' if s['emulado'] else ''}puntuacion {s['puntuacion']} | herramienta {s['herramienta']:.0%} | args {s['argumentos']:.0%} | alucina {s['alucinaciones']:.0%} | "
-                  f"mediana {s['latencia_mediana_s']:.1f}s | {s['tokens_por_s'] or 0:.0f} tok/s | GPU {s['gpu_pct']}%", flush=True)
+                  f"mediana {s['latencia_mediana_s'] or 0:.1f}s | {s['tokens_por_s'] or 0:.0f} tok/s | GPU {s['gpu_pct']}%", flush=True)
         elif last.get("sin_soporte"):
             print(f"  SIN soporte de herramientas en Ollama (capacidades: {last['capacidades']})")
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
     out = ROOT / "data" / f"eval_modelos_{stamp}.json"
     out.write_text(json.dumps({"fecha": stamp, "reps": reps, "casos": len(cases), "resultados": results}, ensure_ascii=False, indent=1), encoding="utf-8")
-    if "--aplicar" in argv:
+    if "--aplicar" in argv and not provider:
         path = ROOT / "config" / "puntuaciones_locales.json"
         known = json.loads(path.read_text(encoding="utf-8")).get("modelos", {}) if path.exists() else {}
         known.update({r["modelo"]: r["resumen"]["puntuacion"] for r in results if "resumen" in r})
@@ -222,7 +260,7 @@ def main():
     for r in rows:
         s = r["resumen"]
         md.append(f"| {r['modelo']}{' (emulado)' if s['emulado'] else ''} | **{s['puntuacion']}** | {s['herramienta']:.0%} | {s['herramienta_con_tool']:.0%} | {('n/d' if s['charla_sin_tool'] is None else format(s['charla_sin_tool'], '.0%'))} | {s['argumentos']:.0%} | "
-                  f"{s['alucinaciones']:.0%} | {s['consistencia']:.0%} | {s['latencia_mediana_s']:.1f}s | {s['tokens_por_s'] or 0:.0f} | {s['gpu_pct']}% |")
+                  f"{s['alucinaciones']:.0%} | {s['consistencia']:.0%} | {s['latencia_mediana_s'] or 0:.1f}s | {s['tokens_por_s'] or 0:.0f} | {s['gpu_pct']}% |")
     out.with_suffix(".md").write_text("\n".join(md) + "\n", encoding="utf-8")
     print("\n" + "\n".join(md) + f"\n\nGuardado en {out.name} (+ .md)")
 

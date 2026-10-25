@@ -13,7 +13,7 @@ def limits() -> dict[str, dict]:
     latest: dict[str, dict] = {}
     for path in files:
         for result in json.loads(path.read_text(encoding="utf-8")).get("resultados", []):
-            if "resumen" in result:
+            if "resumen" in result and not result.get("proveedor"):
                 latest[result["modelo"]] = result
     out = {}
     for model, result in latest.items():

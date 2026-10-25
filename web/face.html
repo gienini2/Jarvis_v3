@@ -21,6 +21,7 @@ svg{width:min(94vw,94vh);max-height:76vh;height:auto}
 body.withDetail #stage{bottom:55vh}
 body.withDetail svg{max-height:30vh}
 body.withDetail #sub{min-height:0}
+#timing{color:#5d7186;font-size:12px;text-align:center;min-height:1.2em}
 #lock{position:fixed;top:8px;left:12px;font-size:20px;display:none;opacity:.85}
 #lock.on{display:block}
 #dot{position:fixed;top:12px;right:14px;width:10px;height:10px;border-radius:50%;background:#2c2;opacity:.55}
@@ -45,6 +46,7 @@ body.withDetail #sub{min-height:0}
     </g>
   </svg>
   <div id="sub"></div>
+  <div id="timing"></div>
 </div>
 <a id="waBtn" href="#" target="_blank" rel="noopener">📲 Abrir WhatsApp</a>
 <div id="detail"><button id="detailClose" aria-label="Cerrar">✕</button><div id="detailRows"></div></div>
@@ -209,7 +211,8 @@ async function api(path, body) {
 }
 
 const BACKEND_TAG = /^\s*(\[[^\]\n]{2,28}\]\s*)+/;
-const MAX_SPOKEN = 420, MAX_SHOWN = 320;
+const MAX_SPOKEN = 420, MAX_SHOWN = 320, SILENCE_MS = 700;
+let timing = {};
 
 function plain(text) {
   return text.replace(TAG, "").replace(BACKEND_TAG, "").replace(/```[\s\S]*?```/g, " ")
@@ -307,6 +310,7 @@ function reply(text) {
   if (v) u.voice = v;
   u.lang = (v && v.lang) || "es-ES"; u.rate = 1.05;
   u.onboundary = () => { speakPulse = .5; };
+  u.onstart = () => { timing.voz = performance.now() - timing.replyAt; showTiming(); };
   u.onend = u.onerror = finish;
   state = "speaking";
   speechSynthesis.speak(u);
@@ -315,14 +319,16 @@ function reply(text) {
 async function ask(text) {
   state = "thinking"; say("🎤 " + text, 4000);
   try {
-    const d = await api("/chat", { message: text });
+    const t0 = performance.now();
+    const d = await api("/chat", { message: text, canal: "voz" });
+    timing.jarvis = performance.now() - t0; timing.replyAt = performance.now();
     reply(d.response || "");
   } catch (e) {
     emotion = "worried"; state = "idle"; emoUntil = Date.now() + 5000; say("No he podido hablar con Jarvis: " + e.message);
   }
 }
 
-let rec = null, chunks = [], stream = null, audioCtx = null, meter = 0, heard = false, maxRms = 0, micLevel = 0;
+let lastQuiet = 0, rec = null, chunks = [], stream = null, audioCtx = null, meter = 0, heard = false, maxRms = 0, micLevel = 0;
 async function listen() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     say("El micrófono necesita HTTPS. Usa la dirección https de Tailscale.", 9000); return;
@@ -354,11 +360,18 @@ async function listen() {
     if (now - started < 600) { floor += smooth; floorN++; return; }
     const noise = floor / Math.max(1, floorN), limit = Math.max(.02, noise * 2.5);
     sub.textContent = `Te escucho… nivel ${smooth.toFixed(3)} (voz > ${limit.toFixed(3)}) · toca para enviar`;
-    if (smooth > limit) { loudRun++; quietSince = now; if (loudRun >= 3) heard = true; } else loudRun = 0;
-    if ((heard && now - quietSince > 1200) || (!heard && now - started > 8000) || now - started > 20000) stopListening();
+    if (smooth > limit) { loudRun++; quietSince = now; lastQuiet = now; if (loudRun >= 3) heard = true; } else loudRun = 0;
+    if ((heard && now - quietSince > SILENCE_MS) || (!heard && now - started > 8000) || now - started > 20000) stopListening();
   }, 100);
 }
+function showTiming() {
+  const f = (ms) => (ms == null ? "–" : (ms / 1000).toFixed(1));
+  const total = (timing.silencio || 0) + (timing.transcr || 0) + (timing.jarvis || 0) + (timing.voz || 0);
+  $("#timing").textContent = `⏱ silencio ${f(timing.silencio)} · transcr ${f(timing.transcr)} · Jarvis ${f(timing.jarvis)} · voz ${f(timing.voz)} = ${f(total)} s`;
+  timing = {};
+}
 function stopListening() {
+  timing = { silencio: Math.max(0, Date.now() - lastQuiet) };
   clearInterval(meter);
   if (rec && rec.state !== "inactive") rec.stop();
 }
@@ -379,7 +392,9 @@ async function onRecorded() {
       const r = new FileReader(); r.onload = () => res(String(r.result).split(",", 2)[1] || ""); r.onerror = rej; r.readAsDataURL(blob);
     });
     const ext = mime.includes("ogg") ? "ogg" : (mime.includes("mp4") ? "m4a" : "webm");
+    const tx0 = performance.now();
     const d = await api("/extract", { name: "voz." + ext, content_b64: b64 });
+    timing.transcr = performance.now() - tx0;
     const text = (d.text || "").trim();
     if (!text) { state = "idle"; say("No te he entendido."); return; }
     await ask(text);

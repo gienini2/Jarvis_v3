@@ -637,11 +637,19 @@ def _project_tasks(term: str, fuzzy: bool) -> list[dict] | None:
     return None                                  # term no es un proyecto conocido
 
 
+SYNC_TTL = 20.0   # segundos: leer el Centro de Mando remoto cuesta ~2 s y las tareas no cambian cada 20 s
+TASK_WRITERS = {"complete_task", "add_task", "update_task", "delete_task", "delete_project_tasks"}
+_last_sync = 0.0
+
+
 def query_tasks(project: str = "", keyword: str = "") -> list[dict]:
     # El Centro de Mando remoto es la fuente de verdad. Sin este sync, el
     # agente podia responder con una tabla local vacia o antigua tras arrancar.
+    global _last_sync
     try:
-        sync_tasks_from_json()
+        if time.monotonic() - _last_sync > SYNC_TTL:
+            sync_tasks_from_json()
+            _last_sync = time.monotonic()
     except Exception:
         # Si Figaro no esta disponible, conservar la ultima copia local sigue
         # siendo mas util que fallar toda la consulta.
@@ -1153,6 +1161,9 @@ def call_tool(name: str, arguments: dict):
     fn = FUNCTIONS.get(name)
     if not fn:
         return {"error": f"Herramienta desconocida: {name}"}
+    global _last_sync
+    if name in TASK_WRITERS:
+        _last_sync = 0.0   # tras escribir, la proxima consulta vuelve a leer el Centro de Mando
     try:
         return fn(**arguments)
     except Exception as e:

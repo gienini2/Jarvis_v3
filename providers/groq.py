@@ -3,6 +3,7 @@ import time
 import requests
 
 from config.settings import settings
+from core import channel
 from core.llm_types import ProviderResult
 from providers.base import BaseProvider, raise_with_body, openai_content, usage_from
 
@@ -40,18 +41,21 @@ class GroqProvider(BaseProvider):
 
     def chat_tools(self, request):
         started = time.monotonic()
+        body = {
+            "model": request.model,
+            "messages": request.prompt,
+            "tools": request.tools,
+            "tool_choice": "auto",
+            "temperature": settings.LLM_TEMPERATURE,
+            "max_tokens": settings.LLM_MAX_TOKENS,
+        }
+        if channel.is_voice() and request.model.startswith("openai/gpt-oss"):
+            body["reasoning_effort"] = "low"   # por voz importa mas la rapidez que razonar a fondo
         try:
             response = requests.post(
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers=self._headers(),
-                json={
-                    "model": request.model,
-                    "messages": request.prompt,
-                    "tools": request.tools,
-                    "tool_choice": "auto",
-                    "temperature": settings.LLM_TEMPERATURE,
-                    "max_tokens": settings.LLM_MAX_TOKENS,
-                },
+                json=body,
                 # Un proveedor cloud caido no debe dejar el chat local en
                 # silencio durante un minuto: el router prueba NVIDIA/Ollama.
                 timeout=(3.05, 15),

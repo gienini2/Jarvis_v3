@@ -108,7 +108,7 @@ text, _ = proc.process("modo normal")
 check("'modo normal' lo desactiva", "desactivado" in text and not privacy.mode_on())
 
 print("Un solo mensaje privado")
-for prefix in ("/privado ", "privado: "):
+for prefix in ("/privado ", "privado: ", "/privado: ", "/privado, "):
     groq, ollama = setup()
     saved.clear()
     response, _ = proc.process(prefix + "pregunta delicada")

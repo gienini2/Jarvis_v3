@@ -68,7 +68,7 @@ def _save_assistant(response: str) -> None:
 _PRIVACY_ON = re.compile(r"^\W*(/privado|modo privado|activa(?:r)? (?:el )?modo privado|ponte en modo privado)\W*$", re.IGNORECASE)
 _PRIVACY_OFF = re.compile(r"^\W*(/p[uú]blico|/privado off|modo normal|modo p[uú]blico|desactiva(?:r)? (?:el )?modo privado|sal(?:ir)? del modo privado)\W*$", re.IGNORECASE)
 _PRIVACY_STATUS = re.compile(r"^\W*(/privado\?|modo privado\?)\W*$", re.IGNORECASE)
-_ONE_SHOT = re.compile(r"^\s*(?:/privado\s+|privado\s*[:,]\s*)(.+)$", re.IGNORECASE | re.DOTALL)
+_ONE_SHOT = re.compile(r"^\s*(?:/privado\s*[:,]?\s+|/?privado\s*[:,]\s*)(.+)$", re.IGNORECASE | re.DOTALL)
 
 
 def _warm_local():

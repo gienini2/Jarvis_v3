@@ -25,6 +25,7 @@ Arranque automático (NSSM):
 """
 
 import os
+import re
 import sys
 import json
 import time
@@ -324,20 +325,61 @@ def alpha50_intent_handler(texto_usuario: str) -> Optional[str]:
         if resp_alpha50:
             return {"intent": "alpha50", "respuesta": resp_alpha50}
     """
-    from agente_decisor  import procesar_respuesta
-    from agente_metrica  import ejecutar_con_datos_manuales, completar_metricas
-
-    texto_lower = texto_usuario.strip().lower()
+    # El relay puede exigir el prefijo "/alpha50" para enrutar la respuesta
+    # ("/alpha50 58/98/equilibrado/54/100.5", "/alpha50 a"). Se quita aquí: si lo
+    # que queda es un subcomando se ejecuta; si no, es la respuesta a lo que el
+    # bot está esperando (métricas, A/B/C, hecho...). Antes todo lo que llevaba
+    # el prefijo iba a _manejar_comando_alpha50 y las métricas acababan en el menú.
+    texto_usuario, con_prefijo = _quitar_prefijo_alpha50(texto_usuario)
+    texto_lower = texto_usuario.lower()
 
     s = _sesion_get()
-    esperando = s["esperando"]
-    contexto  = s["contexto"]
 
     # ── Comandos y lenguaje natural de Alpha50 SIEMPRE primero ────────────────
     # Funciona aunque haya un estado pendiente y sirve para desbloquear la sesión.
-    cmd = _detectar_comando_alpha50(texto_lower)
-    if cmd is not None:
-        return _manejar_comando_alpha50(cmd)
+    if con_prefijo:
+        if not texto_lower or _es_subcomando_alpha50(texto_lower):
+            return _manejar_comando_alpha50(f"alpha50 {texto_lower}".strip())
+    else:
+        cmd = _detectar_comando_alpha50(texto_lower)
+        if cmd is not None:
+            return _manejar_comando_alpha50(cmd)
+
+    resp = _responder_a_pendiente(texto_usuario, texto_lower, s)
+    if resp is None and con_prefijo:
+        # Iba dirigido a Alpha50 pero no encaja con nada pendiente → ayuda
+        return _manejar_comando_alpha50("alpha50")
+    return resp
+
+
+def _quitar_prefijo_alpha50(texto: str):
+    """'/alpha50 58/98' → ('58/98', True) · '/alpha50@MiBot hecho' → ('hecho', True)
+    · 'alpha50 estado' → ('estado', True) · 'qué entreno toca' → (igual, False)."""
+    t = texto.strip()
+    m = re.match(r"^/?alpha50(?:@\w+)?(?=\s|$)", t, flags=re.IGNORECASE)
+    if not m:
+        return t, False
+    return t[m.end():].strip(), True
+
+
+# Palabras que convierten el resto del mensaje en un subcomando de Alpha50
+# (mismas que reconoce _manejar_comando_alpha50).
+_SUBCOMANDOS = ("debug", "hecho", "completado", "parcial", "no pude", "saltado",
+                "nivel", "estado", "semana", "resumen", "tendencia", "progreso",
+                "ahora", "forzar", "ayuda", "help", "comandos")
+
+
+def _es_subcomando_alpha50(texto_lower: str) -> bool:
+    return any(texto_lower.startswith(k) for k in _SUBCOMANDOS)
+
+
+def _responder_a_pendiente(texto_usuario: str, texto_lower: str, s: dict) -> Optional[str]:
+    """Enruta la respuesta según lo que el bot esté esperando. None si no aplica."""
+    from agente_decisor  import procesar_respuesta
+    from agente_metrica  import ejecutar_con_datos_manuales, completar_metricas
+
+    esperando = s["esperando"]
+    contexto  = s["contexto"]
 
     _parece_datos = any(ch.isdigit() for ch in texto_usuario)
 

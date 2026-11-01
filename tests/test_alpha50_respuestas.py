@@ -26,8 +26,8 @@ sys.path.insert(0, str(ROOT / "alpha50"))   # imports planos entre agentes
 sys.path.insert(0, str(ROOT))
 
 # El scheduler importa estas libs a nivel de módulo; si no están instaladas
-# (entorno de CI mínimo) basta un stub: estos tests no programan nada.
-for _mod in ("schedule", "dotenv"):
+# (entorno de CI mínimo) basta un stub: estos tests no programan ni envían nada.
+for _mod in ("schedule", "dotenv", "requests"):
     try:
         __import__(_mod)
     except ImportError:

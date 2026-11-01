@@ -94,6 +94,10 @@ def _sesion_init():
 
 
 SESSION_TTL_HOURS = 2
+# La pregunta de métricas de las 07:00 se contesta cuando JP mira el reloj, a
+# menudo horas después: no caduca a las 2 h sino al cambiar de día. (Caso real
+# 01/11/2026: contestó pasadas las 2 h y le salió el menú sin registrar nada.)
+ESPERAS_DEL_DIA = ("metricas", "metricas_faltantes")
 
 
 def _sesion_get() -> dict:
@@ -110,8 +114,11 @@ def _sesion_get() -> dict:
         ctx = {}
     waiting = row["esperando"]
     try:
-        age = datetime.now() - datetime.strptime(row["actualizado"], "%Y-%m-%d %H:%M:%S")
-        if waiting and age > timedelta(hours=SESSION_TTL_HOURS):
+        hecho_en = datetime.strptime(row["actualizado"], "%Y-%m-%d %H:%M:%S")
+        if waiting in ESPERAS_DEL_DIA:
+            if hecho_en.date() != date.today():
+                waiting = None   # métricas de otro día: ya no valen
+        elif waiting and datetime.now() - hecho_en > timedelta(hours=SESSION_TTL_HOURS):
             waiting = None   # una pregunta de hace horas ya no es lo que el usuario esta contestando ("no", "a"...)
     except (TypeError, ValueError):
         pass
@@ -324,7 +331,15 @@ def _ejecutar_decisor(metricas_resultado: dict) -> bool:
 
 
 # ── INTENT HANDLER (llamado desde Jarvis) ─────────────────────────────────────
-_EXPLICITO = re.compile(r"^\s*/?alpha50\b[:,]?\s*(.*)$", re.IGNORECASE | re.DOTALL)
+# "/alpha50@NombreBot ..." es como Telegram manda el comando si se pulsa desde el menú.
+_EXPLICITO = re.compile(r"^\s*/?alpha50(?:@\w+)?\b[:,]?\s*(.*)$", re.IGNORECASE | re.DOTALL)
+
+# Subcomandos que no son respuesta a nada pendiente: van directos, para que
+# "/alpha50 semana" o "/alpha50 nivel Avanzado 3" no se lean como métricas.
+# (hecho/parcial/no pude NO van aquí: con algo pendiente deben pasar por la
+# sesión para conservar la opción de cardio elegida.)
+_SUBCOMANDOS_DIRECTOS = ("estado", "semana", "resumen", "tendencia", "progreso",
+                         "nivel", "ahora", "forzar", "debug", "ayuda", "help")
 
 
 def alpha50_intent_handler(texto_usuario: str) -> Optional[str]:
@@ -338,6 +353,8 @@ def alpha50_intent_handler(texto_usuario: str) -> Optional[str]:
     if not m:
         return None
     resto = m.group(1).strip()
+    if resto.lower().startswith(_SUBCOMANDOS_DIRECTOS):
+        return _manejar_comando_alpha50(f"alpha50 {resto.lower()}")
     if resto:
         respuesta = _responder_pendiente(resto)
         if respuesta:

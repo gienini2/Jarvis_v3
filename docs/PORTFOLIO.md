@@ -47,7 +47,8 @@ Accesible por chat web, Telegram y una API compatible con OpenAI.
   **edición de código real** con *aider* (un commit git reversible por cambio).
 - **Escáner de red**: descubrimiento de hosts de la LAN, *fingerprinting*,
   **búsqueda de CVEs** y report con notificación por Telegram.
-- **Alpha50**: coach de entrenamiento integrado con **Garmin Connect**.
+- **Alpha50**: coach de entrenamiento integrado con **Garmin Connect** (report propio en
+  [Alpha50-core](https://github.com/gienini2/Alpha50-core/blob/main/docs/PORTFOLIO.md)).
 - **Notificaciones proactivas** a Telegram.
 
 ### Multimodal

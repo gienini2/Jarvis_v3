@@ -11,6 +11,7 @@ Groq sirve whisper-large-v3(-turbo) por el endpoint OpenAI-compatible
 """
 import io
 import logging
+import time
 
 import requests
 
@@ -19,11 +20,15 @@ from config.settings import settings
 log = logging.getLogger("jarvis.transcribe")
 
 _URL = "https://api.groq.com/openai/v1/audio/transcriptions"
+_SESSION = requests.Session()   # reutiliza la conexion TLS entre frases (ahorra el saludo de ~0,3 s)
 
 
 def transcribe(data: bytes, filename: str = "audio.ogg", language: str | None = "es") -> str:
     """Devuelve el texto transcrito. `language` fija el idioma (mejora la precision
     en audios cortos); None deja que Whisper lo autodetecte. Lanza si falla la API."""
+    from core import privacy
+    if privacy.is_forced() or privacy.mode_on():
+        raise RuntimeError("Modo privado: la transcripcion de voz usa la nube (Groq); escribe el mensaje o desactiva el modo con /publico.")
     if not settings.GROQ_API_KEY:
         raise RuntimeError("GROQ_API_KEY no configurada; no puedo transcribir audio.")
 
@@ -31,7 +36,8 @@ def transcribe(data: bytes, filename: str = "audio.ogg", language: str | None = 
     if language:
         payload["language"] = language
 
-    response = requests.post(
+    started = time.monotonic()
+    response = _SESSION.post(
         _URL,
         headers={"Authorization": f"Bearer {settings.GROQ_API_KEY}"},
         files={"file": (filename, io.BytesIO(data))},
@@ -39,5 +45,6 @@ def transcribe(data: bytes, filename: str = "audio.ogg", language: str | None = 
         timeout=(3.05, 60),
     )
     response.raise_for_status()
+    log.info("[whisper] %d bytes en %.2f s", len(data), time.monotonic() - started)
     # response_format=text -> el cuerpo es el texto plano transcrito.
     return response.text.strip()

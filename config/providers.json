@@ -31,7 +31,8 @@
     "groq": "groq",
     "nvidia": "nvidia",
     "ollama": "qwen-local",
-    "kimi": "kimi"
+    "kimi": "kimi",
+    "cerebras": "cerebras"
   },
   "scoring": {
     "_comment": "Ponderacion potencia + disponibilidad del router. score = prioridad_proveedor + prioridad_modelo + capacidad(rol) + ajuste_disponibilidad. La disponibilidad la mide HealthManager en vivo (latencia + racha de 429/errores que decae con exitos).",
@@ -107,76 +108,6 @@
       "enabled": true,
       "models": [
         {
-          "name": "meta/llama-3.3-70b-instruct",
-          "display_name": "Llama-3.3-70B",
-          "roles": [
-            "general",
-            "tools"
-          ],
-          "priority": 90,
-          "context": 131072,
-          "reasoning": 8,
-          "coding": 7,
-          "speed": 7,
-          "tools": true,
-          "stream": false,
-          "vision": false,
-          "embeddings": false
-        },
-        {
-          "name": "openai/gpt-oss-120b",
-          "display_name": "GPT-OSS-120B (NVIDIA)",
-          "roles": [
-            "general",
-            "reasoning",
-            "tools"
-          ],
-          "priority": 92,
-          "context": 131072,
-          "reasoning": 9,
-          "coding": 8,
-          "speed": 7,
-          "tools": true,
-          "stream": false,
-          "vision": false,
-          "embeddings": false
-        },
-        {
-          "name": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
-          "display_name": "Nemotron Super 49B",
-          "roles": [
-            "general",
-            "reasoning",
-            "tools"
-          ],
-          "priority": 88,
-          "context": 131072,
-          "reasoning": 9,
-          "coding": 8,
-          "speed": 6,
-          "tools": true,
-          "stream": false,
-          "vision": false,
-          "embeddings": false
-        },
-        {
-          "name": "openai/gpt-oss-20b",
-          "display_name": "GPT-OSS-20B (NVIDIA)",
-          "roles": [
-            "general",
-            "tools"
-          ],
-          "priority": 80,
-          "context": 131072,
-          "reasoning": 7,
-          "coding": 6,
-          "speed": 8,
-          "tools": true,
-          "stream": false,
-          "vision": false,
-          "embeddings": false
-        },
-        {
           "name": "meta/llama-3.2-11b-vision-instruct",
           "display_name": "Llama 3.2 11B Vision",
           "roles": [
@@ -190,6 +121,41 @@
           "tools": false,
           "stream": false,
           "vision": true,
+          "embeddings": false
+        },
+        {
+          "name": "nvidia/nemotron-3-ultra-550b-a55b",
+          "display_name": "Nemotron 3 Ultra 550B",
+          "roles": [
+            "general",
+            "tools"
+          ],
+          "priority": 85,
+          "context": 131072,
+          "reasoning": 9,
+          "coding": 8,
+          "speed": 6,
+          "tools": true,
+          "stream": false,
+          "vision": false,
+          "embeddings": false,
+          "cascade_bonus": -40
+        },
+        {
+          "name": "nvidia/nemotron-3.5-bolt-e4b",
+          "display_name": "Nemotron 3.5 Bolt e4b",
+          "roles": [
+            "general",
+            "tools"
+          ],
+          "priority": 84,
+          "context": 131072,
+          "reasoning": 9,
+          "coding": 8,
+          "speed": 6,
+          "tools": true,
+          "stream": false,
+          "vision": false,
           "embeddings": false
         }
       ]
@@ -233,22 +199,6 @@
           "embeddings": false
         },
         {
-          "name": "deepseek-r1:7b",
-          "display_name": "DeepSeek-R1 7B",
-          "roles": [
-            "reasoning"
-          ],
-          "priority": 72,
-          "context": 131072,
-          "reasoning": 8,
-          "coding": 7,
-          "speed": 5,
-          "tools": false,
-          "stream": true,
-          "vision": false,
-          "embeddings": false
-        },
-        {
           "name": "gemma3:latest",
           "display_name": "Gemma 3 (vision local)",
           "roles": [
@@ -276,6 +226,63 @@
           "context": 32768,
           "reasoning": 6,
           "coding": 7,
+          "speed": 6,
+          "tools": true,
+          "stream": true,
+          "vision": false,
+          "embeddings": false,
+          "role_priority": {
+            "tools": 70
+          }
+        },
+        {
+          "name": "qwen3:8b",
+          "display_name": "Qwen3 8B",
+          "roles": [
+            "general",
+            "tools"
+          ],
+          "priority": 85,
+          "context": 32768,
+          "reasoning": 6,
+          "coding": 6,
+          "speed": 6,
+          "tools": true,
+          "stream": true,
+          "vision": false,
+          "embeddings": false,
+          "no_think": true,
+          "cascade_bonus": 45
+        },
+        {
+          "name": "qwen3.5:9b",
+          "display_name": "Qwen3.5 9B",
+          "roles": [
+            "general",
+            "tools"
+          ],
+          "priority": 84,
+          "context": 32768,
+          "reasoning": 6,
+          "coding": 6,
+          "speed": 6,
+          "tools": true,
+          "stream": true,
+          "vision": false,
+          "embeddings": false,
+          "no_think": true
+        },
+        {
+          "name": "ministral-3:8b",
+          "display_name": "Ministral 3 8B",
+          "roles": [
+            "general",
+            "tools"
+          ],
+          "priority": 82,
+          "context": 32768,
+          "reasoning": 6,
+          "coding": 6,
           "speed": 6,
           "tools": true,
           "stream": true,
@@ -327,6 +334,11 @@
           "embeddings": false
         }
       ]
+    },
+    "cerebras": {
+      "priority": 95,
+      "enabled": false,
+      "models": []
     }
   },
   "model_fields": {

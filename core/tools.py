@@ -308,10 +308,10 @@ TOOLS = [
         "function": {
             "name": "send_email",
             "description": (
-                "Envia un correo real desde Gmail (cuenta jarvis.gienini2.1009@gmail.com). "
-                "Usar solo cuando el usuario pida explicitamente enviar/mandar un correo y "
-                "haya dado destinatario, asunto y cuerpo (si falta algo, preguntalo antes de "
-                "llamar a esta tool, no inventes el contenido)."
+                "Prepara un correo de Gmail (cuenta jarvis.gienini2.1009@gmail.com) a una direccion que el "
+                "usuario te ha dado escrita. NO se envia hasta que el usuario conteste 'si'. Si el destinatario "
+                "es una persona de su agenda, usa buscar_contacto + preparar_mensaje. Si falta destinatario, "
+                "asunto o cuerpo, preguntalo antes; no inventes el contenido."
             ),
             "parameters": {
                 "type": "object",
@@ -582,6 +582,14 @@ TOOLS = [
 # son charla / recuerdo / consulta y no necesitan actuar. Rama LIGERA = lo
 # minimo; si el modelo necesita ACTUAR, llama a 'usar_herramientas' y el agente
 # recarga el set completo (una ronda extra, sin perder capacidad).
+from core.contacts import (TOOL_SCHEMAS as _CONTACT_SCHEMAS, buscar_contacto, contactos_sin_hablar, preparar_correo_directo,
+                           preparar_mensaje, ultimo_contacto)
+
+from core.chat_private import TOOL_SCHEMAS as _CHAT_SCHEMAS, redactar_como_yo, resumir_chat
+
+TOOLS.extend(_CONTACT_SCHEMAS)
+TOOLS.extend(_CHAT_SCHEMAS)
+
 LIGHT_TOOL_NAMES = {"search_memory", "remember", "query_tasks"}
 
 ESCALATE_TOOL = {
@@ -629,11 +637,19 @@ def _project_tasks(term: str, fuzzy: bool) -> list[dict] | None:
     return None                                  # term no es un proyecto conocido
 
 
+SYNC_TTL = 20.0   # segundos: leer el Centro de Mando remoto cuesta ~2 s y las tareas no cambian cada 20 s
+TASK_WRITERS = {"complete_task", "add_task", "update_task", "delete_task", "delete_project_tasks"}
+_last_sync = 0.0
+
+
 def query_tasks(project: str = "", keyword: str = "") -> list[dict]:
     # El Centro de Mando remoto es la fuente de verdad. Sin este sync, el
     # agente podia responder con una tabla local vacia o antigua tras arrancar.
+    global _last_sync
     try:
-        sync_tasks_from_json()
+        if time.monotonic() - _last_sync > SYNC_TTL:
+            sync_tasks_from_json()
+            _last_sync = time.monotonic()
     except Exception:
         # Si Figaro no esta disponible, conservar la ultima copia local sigue
         # siendo mas util que fallar toda la consulta.
@@ -662,9 +678,20 @@ def _compact_tasks(tasks: list[dict]) -> list[dict]:
     return [{"prioridad": t["priority"], "proyecto": t["project"], "tarea": t["title"]} for t in tasks]
 
 
+CURATED_SOURCE = "claude_code"
+CURATED_MIN_SIMILARITY = 0.64
+
+
 def search_memory(query: str, limit: int = 4, source: str = "") -> list[dict]:
     # Recuerdos enteros (sin recortar): el cap va en numero de resultados.
     mems = search_memories(query, limit=min(limit, 6), source=source or None)
+    if not source:
+        seen = {m["id"] for m in mems}
+        curated = [
+            m for m in search_memories(query, limit=2, source=CURATED_SOURCE)
+            if m["id"] not in seen and m["similarity"] >= CURATED_MIN_SIMILARITY
+        ]
+        mems = curated + mems
     return [{"recuerdo": m["content"], "similitud": round(m.get("similarity", 0), 2)} for m in mems]
 
 
@@ -838,10 +865,7 @@ def send_email(to: str, subject: str, body: str) -> dict:
         return {"error": f"'{to}' no parece una direccion de correo valida."}
     if not subject or not body:
         return {"error": "Falta asunto o cuerpo del correo -- no se envia nada a medias."}
-    ok = _send_email(to, subject, body)
-    if not ok:
-        return {"error": "Gmail rechazo el envio -- ver logs de connectors/google_tools.py."}
-    return {"ok": True, "to": to, "subject": subject}
+    return preparar_correo_directo(to, subject, body)
 
 
 def create_calendar_event(summary: str, start: str, end: str = "", description: str = "") -> dict:
@@ -1067,6 +1091,9 @@ def self_extend(
     packages = packages or []
     smoke_args = smoke_args or {}
 
+    if smoke_tool in se.SMOKE_FORBIDDEN:
+        return {"error": f"'{smoke_tool}' tiene efectos reales y no sirve como smoke test; usa una tool de solo lectura."}
+
     prohibidos = [p for p in packages if not se.is_package_allowed(p)]
     if prohibidos:
         return {
@@ -1111,6 +1138,12 @@ FUNCTIONS = {
     "delete_project_tasks": delete_project_tasks,
     "send_telegram_message": send_telegram_message,
     "send_email": send_email,
+    "buscar_contacto": buscar_contacto,
+    "preparar_mensaje": preparar_mensaje,
+    "ultimo_contacto": ultimo_contacto,
+    "resumir_chat": resumir_chat,
+    "redactar_como_yo": redactar_como_yo,
+    "contactos_sin_hablar": contactos_sin_hablar,
     "create_calendar_event": create_calendar_event,
     "find_calendar_events": find_calendar_events,
     "delete_calendar_event": delete_calendar_event,
@@ -1128,6 +1161,9 @@ def call_tool(name: str, arguments: dict):
     fn = FUNCTIONS.get(name)
     if not fn:
         return {"error": f"Herramienta desconocida: {name}"}
+    global _last_sync
+    if name in TASK_WRITERS:
+        _last_sync = 0.0   # tras escribir, la proxima consulta vuelve a leer el Centro de Mando
     try:
         return fn(**arguments)
     except Exception as e:

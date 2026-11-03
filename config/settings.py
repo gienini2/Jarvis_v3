@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     FIGARO_HOST: str = "100.78.43.76"
 
     GROQ_API_KEY: str = ""
+    CEREBRAS_API_KEY: str = ""
     GROQ_MODEL_GENERAL: str = "openai/gpt-oss-120b"
     GROQ_MODEL_CODE: str = "qwen/qwen3.8-27b"
     # Whisper en Groq para transcribir notas de voz (core/transcribe.py).
@@ -34,7 +35,11 @@ class Settings(BaseSettings):
 
     LLM_TEMPERATURE: float = 0.2
     LLM_MAX_TOKENS: int = 2048
+    OLLAMA_KEEP_ALIVE: str = "30m"   # tiempo que Ollama conserva el modelo en la GPU tras cada uso (por defecto 5 min: cada pausa costaba ~8 s de carga)
     OLLAMA_NUM_CTX: int = 4096   # 8192 dispara la latencia de Ollama en la RTX 5050 (~46s)
+    # Enrutado por temas (config/domains.json): prompt y tools minimos segun el mensaje.
+    # DOMAIN_ROUTING=false en .env vuelve al clasificador ligera/completa de siempre.
+    DOMAIN_ROUTING: bool = True
 
     POSTGRES_HOST: str
     POSTGRES_PORT: int
@@ -52,6 +57,12 @@ class Settings(BaseSettings):
     # Google
     GOOGLE_CREDENTIALS_FILE: str = "config/google_credentials.json"
     GOOGLE_TOKEN_FILE: str = "config/google_token.json"
+    # Autorizacion aparte con la cuenta PERSONAL del usuario, solo para enviar correo desde ella
+    # (scope gmail.send): scripts/google_autorizar_usuario.py. Sin ella, send_email falla con un
+    # mensaje claro en vez de enviar desde la cuenta de Jarvis, salvo GOOGLE_EMAIL_FALLBACK_JARVIS=true.
+    GOOGLE_USER_TOKEN_FILE: str = "config/google_user_token.json"
+    GOOGLE_USER_EMAIL: str = "gienini2@gmail.com"
+    GOOGLE_EMAIL_FALLBACK_JARVIS: bool = False
     # Calendario destino de escritura. La cuenta autenticada es
     # jarvis.gienini2.1009 pero los eventos deben caer en el calendario
     # personal de Juanpa (compartido con permiso de escritura). "primary"

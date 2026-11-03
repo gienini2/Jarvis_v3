@@ -33,3 +33,24 @@ alpha50/.garmin_session/
 # Claude memory
 .claude/
 .aider*
+
+# Cache regenerable de embeddings de config/domains.json
+data/domain_examples.npz
+
+# Memorias destiladas con datos personales (revision manual antes de cargar)
+data/claude_code_memorias*
+
+# MASSIVE descargado (reproducible con scripts/import_massive.py) y casos de prueba derivados
+data/massive_es/
+data/massive_cases.json
+
+# Contactos personales: nunca al repositorio
+data/contactos_*
+config/google_user_token.json
+
+# Chats de WhatsApp exportados y sus listados: nunca al repositorio
+data/whatsapp_*
+data/whatsapp_exports/
+
+# Resultados brutos de evaluaciones de modelos (el resumen .md si se versiona)
+data/eval_modelos_*.json

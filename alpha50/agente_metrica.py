@@ -374,7 +374,8 @@ def entrada_manual(body_battery: int, horas_sueno: float,
     sueno_score = score_map.get(sensacion_sueno, 60)
 
     # Convertir hrv_status textual a numérico aproximado
-    hrv_map = {"bueno": 85, "normal": 65, "bajo": 40, "malo": 20, "unknown": 60}
+    hrv_map = {"bueno": 85, "equilibrado": 85, "normal": 65, "bajo": 40,
+               "desequilibrado": 40, "malo": 20, "unknown": 60}
     hrv_valor = hrv_map.get(hrv_status.lower(), 60)
 
     return {
@@ -423,9 +424,9 @@ def calcular_indice(metricas: dict) -> dict:
     # solo se usa como estimación cuando no hay estado.
     hrv_status = (metricas.get("hrv_status") or "").lower()
     hrv_map_status = {
-        "balanced": 90, "bueno": 90,
+        "balanced": 90, "bueno": 90, "equilibrado": 90,
         "normal": 65,
-        "unbalanced": 40, "bajo": 40,
+        "unbalanced": 40, "bajo": 40, "desequilibrado": 40,
         "poor": 20, "low": 20, "malo": 20,
     }
     if hrv_status in hrv_map_status:

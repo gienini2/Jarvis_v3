@@ -1,10 +1,14 @@
 import json
 import logging
+import re
 from dataclasses import replace
 from pathlib import Path
 
 import requests
 
+from config.settings import settings
+from core import llm_stats, model_stats
+from core.privacy import LOCAL_PROVIDERS, is_forced
 from core.backend_state import set_backend
 from core.llm_health import health_manager
 from core.llm_types import LLMRequest, LLMResponse
@@ -24,6 +28,28 @@ _CONFIG = _load_config()
 _PROVIDERS_CONFIG = _CONFIG["providers"]
 _SELECTION = _CONFIG.get("selection", {})
 _BACKEND_LABELS = _CONFIG.get("backend_labels", {})
+SCORES_PATH = CONFIG_PATH.with_name("puntuaciones_locales.json")
+MIN_RELIABLE_SCORE = 40   # un modelo local que puntua menos en tool-calling no se usa para herramientas
+
+
+def _apply_measured_scores(providers: dict, path: Path = SCORES_PATH, cloud_path: Path | None = None):
+    """El orden de los modelos para herramientas lo marca su puntuacion medida (eval_modelos_locales.py --aplicar / calibrar_modelos.py)."""
+    cloud_path = cloud_path or path.with_name("puntuaciones_nube.json")
+    for provider_name, file, keyed in (("ollama", path, False), ("*", cloud_path, True)):
+        if not file.exists():
+            continue
+        scores = json.loads(file.read_text(encoding="utf-8")).get("modelos", {})
+        for name, config in providers.items():
+            if (name == "ollama") == keyed:
+                continue
+            for model in config.get("models", []):
+                score = scores.get(f"{name}/{model['name']}" if keyed else model["name"])
+                if score is not None:
+                    model["measured_score"] = score
+                    model.setdefault("role_priority", {})["tools"] = score
+
+
+_apply_measured_scores(_PROVIDERS_CONFIG)
 
 # Ponderacion potencia + DISPONIBILIDAD. La potencia (prioridad + capacidad) elige
 # el mejor modelo; la disponibilidad ajusta: un proveedor potente pero lento o con
@@ -66,6 +92,8 @@ def _requirements_from_request(request: LLMRequest) -> dict:
         requirements["role"] = "tools"
         requirements.update(role_defaults.get("tools", {}))
     requirements.update(explicit)
+    if is_forced():
+        requirements["local_only"] = True
     if getattr(request, "images", None):
         # Con imagen adjunta forzamos un modelo con vision (rol 'vision') y sin
         # tools: manda el contenido visual por encima del rol que tocara por intent.
@@ -75,7 +103,10 @@ def _requirements_from_request(request: LLMRequest) -> dict:
     return requirements
 
 
-def _backend_label(provider_name: str) -> str:
+def _backend_label(provider_name: str, model: str = "") -> str:
+    """Los locales se etiquetan con el modelo real que respondio (p. ej. qwen3-8b-local), no con uno fijo."""
+    if provider_name in LOCAL_PROVIDERS and model:
+        return re.sub(r"[^a-z0-9_-]", "-", model.lower()) + "-local"
     return _BACKEND_LABELS.get(provider_name, provider_name)
 
 
@@ -93,18 +124,22 @@ def _power_score(provider_config: dict, model_config: dict, requirements: dict) 
         capability_bonus = model_config.get("reasoning", 0)
     else:
         capability_bonus = model_config.get("speed", 0)
-    return provider_config.get("priority", 0) + model_config.get("priority", 0) + capability_bonus
+    priority = (model_config.get("role_priority") or {}).get(role, model_config.get("priority", 0))
+    return provider_config.get("priority", 0) + priority + capability_bonus + model_config.get("cascade_bonus", 0)
 
 
 def _score(provider_name: str, provider_config: dict, model_config: dict, requirements: dict) -> float:
     """Potencia + disponibilidad. La cascada sigue siendo 'el mas potente primero',
     pero un proveedor degradado (lento o fallando) cede el puesto al siguiente."""
-    return _power_score(provider_config, model_config, requirements) + _availability_adjustment(provider_name)
+    return (_power_score(provider_config, model_config, requirements) + _availability_adjustment(provider_name)
+            + model_stats.adjustment(provider_name, model_config["name"]))
 
 
 def _discard_reason(provider_name: str, provider_config: dict, model_config: dict, requirements: dict, ignore_health: bool = False) -> str:
     if not provider_config.get("enabled", False):
         return "proveedor deshabilitado"
+    if requirements.get("local_only") and provider_name not in LOCAL_PROVIDERS:
+        return "contenido privado: solo modelos locales"
     if provider_name not in PROVIDERS:
         return "proveedor sin implementacion"
     if not ignore_health and not health_manager.is_online(provider_name):
@@ -116,6 +151,8 @@ def _discard_reason(provider_name: str, provider_config: dict, model_config: dic
         return f"rol no soportado: {role}"
     if requirements.get("tools") and not model_config.get("tools", False):
         return "tools no soportado"
+    if requirements.get("tools") and model_config.get("measured_score", 100) < MIN_RELIABLE_SCORE:
+        return f"poco fiable con herramientas (puntuacion {model_config['measured_score']})"
     if requirements.get("stream") and not model_config.get("stream", False):
         return "stream no soportado"
     if requirements.get("vision") and not model_config.get("vision", False):
@@ -173,9 +210,10 @@ def _call_candidates(request: LLMRequest, use_tools: bool):
         model_request = replace(request, model=candidate["model"], requirements=requirements)
         result = provider.chat_tools(model_request) if use_tools else provider.chat(model_request)
         last_result = result
+        llm_stats.record_call(result, requirements.get("role", ""), len(request.tools or []))
         if result.success:
             health_manager.record_success(provider_name, result.latency)
-            set_backend(_backend_label(provider_name))
+            set_backend(_backend_label(provider_name, candidate["model"]))
             return result
         # Cualquier fallo (429 rate-limit, 5xx, timeout) resta disponibilidad en el
         # scoring; una caida de red ademas tumba al proveedor (filtro duro).
@@ -252,3 +290,11 @@ def debug(request: LLMRequest | dict) -> str:
     else:
         lines.append("ninguno")
     return "\n".join(lines)
+
+
+def warm_local():
+    """Carga en la GPU el mejor modelo local para herramientas, para que la primera respuesta privada no espere a la carga."""
+    best = find_models({"role": "tools", "tools": True, "local_only": True}, ignore_health=True)
+    if best:
+        requests.post(settings.OLLAMA_URL,
+                      json={"model": best[0]["model"], "keep_alive": settings.OLLAMA_KEEP_ALIVE}, timeout=120)

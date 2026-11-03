@@ -105,6 +105,24 @@
   #ttsBtn.on { background: var(--accent); color: #fff; border: none; }
   .hint { font-size: 11px; color: var(--muted); margin-top: 6px; text-align: center; }
 
+  /* Móvil: el textarea ocupa toda la fila y los botones van debajo */
+  @media (max-width: 640px) {
+    header { padding: 8px 12px; }
+    .tabs { padding: 4px 8px 0; }
+    .tab-btn { padding: 8px 12px; font-size: 12px; }
+    #log { padding: 12px 10px; gap: 12px; }
+    .turn { max-width: 100%; }
+    .bubble { padding: 9px 12px; }
+    .bubble pre { white-space: pre-wrap; word-break: break-all; font-size: 12.5px; }
+    form { padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); }
+    .row { flex-wrap: wrap; }
+    textarea { order: -1; flex: 1 0 100%; font-size: 16px; }
+    .btn { height: 40px; padding: 0 12px; }
+    .btn.send { margin-left: auto; padding: 0 22px; }
+    .hint { display: none; }
+    .newpill { bottom: 128px; }
+  }
+
   /* --- Paneles de datos (Alpha50 / Netscan / Audit) --- */
   .subtabs { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--panel); }
   .sub-btn { border: 1px solid var(--border); background: var(--panel2); color: var(--muted); border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
@@ -154,6 +172,7 @@
   <header>
     <span class="logo">🤖</span>
     <span class="title">Jarvis</span>
+    <span id="privChip" class="status" style="display:none;margin-left:12px" title="Modo privado: solo modelos locales, nada se guarda">🔒 privado</span>
     <span class="status"><span id="dot" class="dot"></span><span id="statusText">conectando…</span></span>
     <button type="button" id="ttsBtn" class="btn" title="Leer las respuestas en voz alta">🔇</button>
   </header>
@@ -164,6 +183,7 @@
     <button class="tab-btn" data-tab="alpha50">💪 Alpha50</button>
     <button class="tab-btn" data-tab="scan">🛰️ Netscan / Audit</button>
     <button class="tab-btn" data-tab="cmds">⌨️ Comandos</button>
+    <button class="tab-btn" data-tab="models">🧠 Modelos</button>
   </div>
 
   <!-- ---------------- CHAT ---------------- -->
@@ -178,7 +198,7 @@
         <button type="button" class="btn" id="attachBtn" title="Adjuntar archivo">📎</button>
         <button type="button" class="btn" id="folderBtn" title="Adjuntar carpeta">📁</button>
         <button type="button" class="btn" id="micBtn" title="Hablar (grabar y transcribir con Whisper)">🎤</button>
-        <textarea id="input" rows="1" placeholder="Escribe a Jarvis…  (Enter envía · Shift+Enter salto de línea)"></textarea>
+        <textarea id="input" rows="1" placeholder="Escribe a Jarvis…"></textarea>
         <button type="submit" class="btn send" id="sendBtn" title="Enviar">➤</button>
       </div>
       <div class="hint">Enter envía · Shift+Enter nueva línea · 📎 adjunta archivos (se leen y se mandan como contexto)</div>
@@ -222,6 +242,15 @@
     <div class="pane" id="resCmds"><div class="empty">Cargando…</div></div>
   </div>
 
+  <!-- ---------------- MODELOS (locales / nube) ---------------- -->
+  <div class="tab-panel" id="panel-models">
+    <div class="subtabs">
+      <span class="sub-title">🧠 Modelos · evaluaciones + uso real de las últimas 24 h</span>
+      <button class="sub-btn reload" id="reloadModels" title="Recargar">🔄</button>
+    </div>
+    <div class="pane" id="resModels"><div class="empty">Cargando…</div></div>
+  </div>
+
 <script>window.JARVIS_KEY = "__JARVIS_KEY__";</script>
 <script>
 const $ = (s) => document.querySelector(s);
@@ -260,6 +289,7 @@ function mdToHtml(src) {
     return " B" + (blocks.length - 1) + " ";
   });
   s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  s = s.replace(/(https?:\/\/[^\s<)]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
   s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   const lines = s.split("\n");
   let out = "", ul = false, ol = false;
@@ -289,6 +319,7 @@ function switchTab(name) {
   if (name === "alpha50") loadAlpha50();
   if (name === "scan") loadScan(currentScanSub);
   if (name === "cmds") loadCommands();
+  if (name === "models") loadModels();
 }
 document.querySelectorAll(".tab-btn").forEach(b => b.onclick = () => switchTab(b.dataset.tab));
 document.querySelectorAll(".sub-btn[data-sub]").forEach(b => b.onclick = () => {
@@ -300,6 +331,33 @@ $("#reloadAlpha").onclick = () => loadAlpha50();
 $("#reloadMando").onclick = () => loadMando();
 $("#reloadScan").onclick = () => loadScan(currentScanSub);
 $("#reloadCmds").onclick = () => loadCommands();
+$("#reloadModels").onclick = () => loadModels();
+
+// ---- Modelos: dos grupos (locales / nube) con lo medido y lo vivido ----
+const MODEL_CATS = ["instrucciones", "razonamiento", "honestidad", "robustez", "contexto", "voz"];
+async function loadModels() {
+  const box = $("#resModels");
+  box.innerHTML = '<div class="empty">Cargando…</div>';
+  try {
+    const rows = (await (await api("/modelos/tabla")).json()).filas || [];
+    const n = (v, d = 1) => v == null ? "–" : Number(v).toFixed(d);
+    let html = "";
+    for (const group of ["Locales", "Nube"]) {
+      html += '<div class="cmdgrp">' + group + '</div><div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:12px;white-space:nowrap">' +
+        "<tr>" + ["Modelo", "Estado", "Global", "Herram.", "Uso herr.", "Uso charla", ...MODEL_CATS.map(c => c.slice(0, 5)), "Lat. eval", "Lat. real", "Llam. 24h", "Fallos"]
+          .map(h => '<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">' + h + "</th>").join("") + "</tr>";
+      for (const r of rows.filter(x => x.grupo === group)) {
+        const c = r.categorias || {};
+        const cells = [r.proveedor + "/" + r.modelo, r.estado, n(r.global), n(r.herramientas), n(r.uso_herramientas), n(r.uso_charla),
+          ...MODEL_CATS.map(k => c[k] == null ? "–" : Math.round(c[k] * 100) + "%"),
+          n(r.mediana_eval_s) + "s", n(r.mediana_real_s) + "s", r.llamadas_24h, r.fallos_24h];
+        html += "<tr>" + cells.map((v, i) => '<td style="padding:3px 8px;border-bottom:1px solid var(--border)' + (i === 2 ? ";font-weight:700" : "") + '">' + esc(String(v)) + "</td>").join("") + "</tr>";
+      }
+      html += "</table></div>";
+    }
+    box.innerHTML = html;
+  } catch (e) { box.innerHTML = '<div class="empty">No se pudo cargar: ' + esc(String(e)) + "</div>"; }
+}
 
 // ---- Comandos (chuleta leída de config/commands.json) ----
 async function loadCommands() {
@@ -334,29 +392,34 @@ function maybeScroll(force) {
 newpill.onclick = () => { log.scrollTop = log.scrollHeight; hidePill(); };
 log.addEventListener("scroll", () => { if (nearBottom()) hidePill(); });
 
-// Icono por backend LLM. Reemplaza al texto [groq]/[nvidia]/... en el chat.
-const BACKEND_ICONS = {
-  groq: "⚡", nvidia: "🟢", "qwen-local": "🏠", "dolphin-local": "🐬",
-  kimi: "🌙", local: "💻", agent: "🤖",
-};
-const BACKEND_NAMES = {
-  groq: "Groq", nvidia: "NVIDIA", "qwen-local": "qwen local",
-  "dolphin-local": "dolphin local", kimi: "Kimi", local: "local",
-};
-// Separa un prefijo "[backend] ..." del texto. Devuelve {backend, text}.
+// Etiqueta visible de cada backend: icono + nombre + (al pasar el raton) limitaciones medidas de ese modelo.
+const BACKEND_ICONS = { groq: "⚡", nvidia: "🟢", kimi: "🌙", local: "💻", agent: "🤖" };
+const BACKEND_NAMES = { groq: "Groq", nvidia: "NVIDIA", kimi: "Kimi", local: "local" };
+const FAMILY_ICONS = [[/^qwen/, "👑🏠"], [/^(mistral|ministral)/, "🌬️🏠"], [/^dolphin/, "🐬"]];
+let modelLimits = {};
+api("/modelos").then(r => r.json()).then(d => { modelLimits = d || {}; }).catch(() => {});
+// Separa un prefijo "[backend] ..." (o "[🔒 backend] ...") del texto. Devuelve {backend, text, priv}.
 function splitBackend(s) {
-  const m = String(s || "").match(/^\s*\[([a-z0-9_-]+)\]\s*/i);
-  return m ? { backend: m[1].toLowerCase(), text: s.slice(m[0].length) } : { backend: null, text: s };
+  const m = String(s || "").match(/^\s*\[(🔒\s*)?([a-z0-9_-]+)\]\s*/i);
+  return m ? { backend: m[2].toLowerCase(), priv: !!m[1], text: s.slice(m[0].length) } : { backend: null, priv: false, text: s };
 }
-function setBackendBadge(turn, backend) {
+function setPrivChip(on) { document.getElementById("privChip").style.display = on ? "" : "none"; }
+api("/calentar", { method: "POST", body: "{}" }).catch(() => {});
+api("/privado").then(r => r.json()).then(d => setPrivChip(d.activo)).catch(() => {});
+function backendIcon(backend) {
+  if (BACKEND_ICONS[backend]) return BACKEND_ICONS[backend];
+  const fam = FAMILY_ICONS.find(([re]) => re.test(backend));
+  return fam ? fam[1] : (backend.endsWith("-local") ? "🏠" : "🤖");
+}
+function setBackendBadge(turn, backend, priv) {
   const bubble = turn.querySelector(".bubble");
   if (!bubble) return;
-  const icon = BACKEND_ICONS[backend] || "🤖";
   const name = BACKEND_NAMES[backend] || backend;
+  const info = modelLimits[backend];
   const tag = document.createElement("div");
   tag.className = "tag";
-  tag.innerHTML = '<span class="llmbadge" title="Respondió: ' + esc(name) + '">' +
-                  '<span class="ic">' + icon + '</span>' + esc(name) + '</span>';
+  tag.innerHTML = '<span class="llmbadge" title="' + esc(info ? info.limitaciones : "Respondió: " + name) + '">' +
+                  (priv ? "🔒 " : "") + '<span class="ic">' + backendIcon(backend) + '</span>' + esc(name) + '</span>';
   bubble.insertBefore(tag, bubble.firstChild);
 }
 
@@ -495,9 +558,11 @@ async function send() {
   try {
     const data = await (await api("/chat", { method: "POST", body: JSON.stringify({ message: payload }) })).json();
     pend.remove();
-    const { backend, text } = splitBackend(data.response || "(sin respuesta)");
+    const { backend, text, priv } = splitBackend(data.response || "(sin respuesta)");
     const el = addMsg("assistant", "");
-    if (backend) setBackendBadge(el, backend);
+    if (backend) setBackendBadge(el, backend, priv);
+    if (/^🔒 Modo privado activado/.test(text)) setPrivChip(true);
+    else if (/^🔓 Modo privado desactivado/.test(text)) setPrivChip(false);
     attachments = []; renderChips(); setStatus(true, "conectado");
     await typeInto(el, text);
     speak(text);

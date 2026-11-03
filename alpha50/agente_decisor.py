@@ -175,7 +175,8 @@ def _lineas_metricas(m: dict) -> list:
     if m.get("hrv_status"):
         vfc = {"balanced": "Equilibrado", "unbalanced": "Desequilibrado",
                "low": "Bajo", "poor": "Malo", "bueno": "Bueno", "normal": "Normal",
-               "bajo": "Bajo", "malo": "Malo"}.get(str(m["hrv_status"]).lower(), m["hrv_status"])
+               "bajo": "Bajo", "malo": "Malo", "equilibrado": "Equilibrado",
+               "desequilibrado": "Desequilibrado"}.get(str(m["hrv_status"]).lower(), m["hrv_status"])
         L.append(f"  💓 VFC: {vfc}")
     if m.get("fc_reposo"):                L.append(f"  ❤️ FC reposo: {m['fc_reposo']} ppm")
     if m.get("peso_kg"):                  L.append(f"  ⚖️ Peso: {m['peso_kg']} kg")

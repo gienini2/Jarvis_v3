@@ -1,0 +1,60 @@
+[
+  {"text": "qué pendientes tengo para esta semana", "expect": ["tareas"]},
+  {"text": "dale por completada a la tarea de renovar el seguro", "expect": ["tareas"]},
+  {"text": "quita del centro de mando lo de llamar al banco", "expect": ["tareas"]},
+  {"text": "mete una tarea nueva: pagar el IBI", "expect": ["tareas"]},
+  {"text": "sube a prioridad alta lo de la matrícula", "expect": ["tareas"]},
+  {"text": "enséñame qué hay abierto en el proyecto Figaro", "expect": ["tareas"]},
+
+  {"text": "tengo mensajes nuevos en el correo", "expect": ["correo"]},
+  {"text": "escríbele un email a Carlos para quedar el sábado", "expect": ["correo"]},
+  {"text": "pásame por Telegram el resumen de hoy", "expect": ["correo"]},
+  {"text": "busca el mail del ayuntamiento", "expect": ["correo"]},
+  {"text": "contesta a ese correo diciendo que sí", "expect": ["correo"]},
+
+  {"text": "qué reuniones tengo mañana", "expect": ["calendario"]},
+  {"text": "apunta en la agenda una cita con el fisio el jueves a las 18", "expect": ["calendario"]},
+  {"text": "elimina el evento de la comida del domingo", "expect": ["calendario"]},
+  {"text": "estoy ocupado el viernes por la mañana", "expect": ["calendario"]},
+  {"text": "cuándo es mi próximo compromiso", "expect": ["calendario"]},
+
+  {"text": "tengo en el drive el contrato de alquiler", "expect": ["drive"]},
+  {"text": "encuentra en mis documentos de Google el informe técnico", "expect": ["drive"]},
+  {"text": "dónde guardé el excel de los gastos en la nube de Google", "expect": ["drive"]},
+
+  {"text": "qué entreno me toca mañana", "expect": ["entreno"]},
+  {"text": "cuántos kilómetros llevo este mes", "expect": ["entreno"]},
+  {"text": "cómo va mi forma física según Garmin", "expect": ["entreno"]},
+  {"text": "dime los entrenos que me faltan de la semana", "expect": ["entreno"]},
+  {"text": "he salido a correr hoy y quiero registrar cómo ha ido", "expect": ["entreno"]},
+
+  {"text": "mira qué aparatos hay en la wifi de casa", "expect": ["red"]},
+  {"text": "haz un barrido de puertos en la red", "expect": ["red"]},
+  {"text": "alguien raro conectado a mi router", "expect": ["red"]},
+
+  {"text": "revisa el repo en busca de fallos de seguridad", "expect": ["codigo"]},
+  {"text": "toca el archivo agent.py y cambia el número máximo de rondas", "expect": ["codigo"]},
+  {"text": "programa una función nueva en el conector de Google", "expect": ["codigo"]},
+  {"text": "arregla el error que sale al arrancar la API", "expect": ["codigo"]},
+
+  {"text": "qué dije el otro día sobre cambiar de trabajo", "expect": ["memoria"]},
+  {"text": "anota en tu memoria que odio las reuniones de lunes", "expect": ["memoria"]},
+  {"text": "me preguntan por mi mayor logro en la entrevista, ayúdame", "expect": ["memoria"]},
+  {"text": "recuerdas lo que hablamos de Mem0", "expect": ["memoria"]},
+
+  {"text": "buenas tardes", "expect": ["charla"]},
+  {"text": "vale, gracias por la ayuda", "expect": ["charla"]},
+  {"text": "qué es un transformer", "expect": ["charla"]},
+  {"text": "dime un buen nombre para un perro", "expect": ["charla"]},
+  {"text": "cómo se dice buenos días en alemán", "expect": ["charla"]},
+
+  {"text": "mira mi calendario de mañana y mándamelo por Telegram", "expect": ["calendario", "correo"]},
+  {"text": "añade una tarea y apúntala también en el calendario", "expect": ["tareas", "calendario"]},
+
+  {"text": "sí, envíalo", "prev": "redáctame un correo para Marta avisando de que llego tarde", "expect": ["correo"]},
+  {"text": "bórrala", "prev": "qué tarea tengo de llamar al dentista", "expect": ["tareas"]},
+  {"text": "y el jueves?", "prev": "qué tengo en el calendario el miércoles", "expect": ["calendario"]},
+
+  {"text": "ajá", "expect": []},
+  {"text": "el que te dije", "expect": []}
+]

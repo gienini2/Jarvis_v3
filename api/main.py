@@ -57,7 +57,7 @@ app = FastAPI(lifespan=lifespan)
 
 # Rutas que no requieren clave -- liveness check y la pagina de la UI web (solo
 # sirve HTML/JS estatico; /history y /chat que llama la UI SI exigen la clave).
-_PUBLIC_PATHS = {"/health", "/", "/ui"}
+_PUBLIC_PATHS = {"/health", "/", "/ui", "/face"}
 
 
 class ApiKeyMiddleware(BaseHTTPMiddleware):
@@ -89,6 +89,7 @@ app.include_router(openai_router, prefix="/v1")
 
 class ChatRequest(BaseModel):
     message: str
+    canal: str = ""
 
 
 class ContextRequest(BaseModel):
@@ -127,7 +128,17 @@ def ui_page():
     import json
     html = _UI_PATH.read_text(encoding="utf-8")
     html = html.replace('"__JARVIS_KEY__"', json.dumps(settings.JARVIS_API_KEY or ""))
-    return HTMLResponse(html)
+    return HTMLResponse(html, headers={"Cache-Control": "no-store"})
+
+
+_FACE_PATH = Path(__file__).resolve().parent.parent / "web" / "face.html"
+
+
+@app.get("/face", response_class=HTMLResponse)
+def face_page():
+    """Cara de Jarvis para el movil. HTML estatico SIN la clave: la pide el usuario
+    una vez en el dispositivo (pulsacion larga) y la guarda en el propio movil."""
+    return HTMLResponse(_FACE_PATH.read_text(encoding="utf-8"), headers={"Cache-Control": "no-store"})
 
 
 @app.get("/commands")
@@ -199,11 +210,50 @@ async def audit_notify(job_id: int):
     return {"status": "notified"}
 
 
+_last_warm = 0.0
+
+
+@app.post("/calentar")
+def calentar():
+    """Precarga el mejor modelo local para herramientas: lo llaman /face y el chat al abrirse o al empezar a escuchar."""
+    import threading
+    import time
+    from core import llm_router
+    global _last_warm
+    if time.monotonic() - _last_warm > 60:
+        _last_warm = time.monotonic()
+        threading.Thread(target=lambda: llm_router.warm_local(), daemon=True).start()
+    return {"ok": True}
+
+
+@app.get("/privado")
+def privado():
+    from core import privacy
+    return {"activo": privacy.mode_on()}
+
+
+@app.get("/modelos/tabla")
+def modelos_tabla():
+    from core import model_report
+    return model_report.build()
+
+
+@app.get("/modelos")
+def modelos():
+    from core.model_limits import limits
+    return limits()
+
+
 @app.post("/chat")
 def chat(req: ChatRequest):
     # Alpha50 ya se resuelve dentro de process() (core/processor.py), común a
     # todas las interfaces. No hace falta llamar al handler aquí también.
-    response, intent_type = process(req.message)
+    from core import channel
+    channel.set_channel(req.canal)
+    try:
+        response, intent_type = process(req.message)
+    finally:
+        channel.reset()
     return JSONResponse(
         content={"response": response, "intent": intent_type},
         media_type="application/json; charset=utf-8",
@@ -217,7 +267,11 @@ def extract(req: ExtractRequest):
     bytes binarios en el prompt (el LLM respondia describiendo la estructura del
     PDF en vez de leer su contenido). Requiere X-Jarvis-Key como el resto."""
     import base64
+    from core import privacy
     from core.attachments import extract_text, UnsupportedAttachment
+    privacy.reset()
+    if privacy.mode_on():
+        privacy.force_local(True)   # las imagenes usan el modelo de vision local; el audio se rechaza (Whisper es nube)
     try:
         data = base64.b64decode(req.content_b64)
     except Exception:
@@ -239,7 +293,11 @@ def chat_agent(req: ChatRequest):
     si sustituye al clasificador de core/intent.py. Usa NVIDIA (llama-3.3-70b-instruct)
     como motor de decision, con fallback a qwen2.5 local si no hay internet.
     """
+    from core import privacy
     from core.mando_intents import handle_mando
+    privacy.reset()
+    if privacy.mode_on():
+        privacy.force_local(True)
     reply = handle_mando(req.message)
     if reply is not None:
         return reply   # adapta al formato de respuesta actual del endpoint

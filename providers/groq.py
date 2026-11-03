@@ -3,13 +3,18 @@ import time
 import requests
 
 from config.settings import settings
+from core import channel
 from core.llm_types import ProviderResult
-from providers.base import BaseProvider, raise_with_body, openai_content
+from providers.base import BaseProvider, raise_with_body, openai_content, usage_from
+
+_SESSION = requests.Session()   # reutiliza la conexion TLS entre llamadas (el saludo cuesta ~0,3 s en cada una)
 
 
 class GroqProvider(BaseProvider):
     name = "groq"
     supports_tools = True
+    URL = "https://api.groq.com/openai/v1/chat/completions"
+    MODELS_URL = "https://api.groq.com/openai/v1/models"
 
     def chat(self, request):
         from core.llm import build_prompt
@@ -20,8 +25,8 @@ class GroqProvider(BaseProvider):
         # y lectura mas larga (la vision tarda mas que el texto).
         prompt_text = request.prompt if images else build_prompt(request.prompt, request.rag)
         try:
-            response = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
+            response = _SESSION.post(
+                self.URL,
                 headers=self._headers(),
                 json={
                     "model": request.model,
@@ -32,48 +37,56 @@ class GroqProvider(BaseProvider):
                 timeout=(3.05, 90 if images else 15),
             )
             raise_with_body(response)
-            text = response.json()["choices"][0]["message"]["content"]
-            return ProviderResult(self.name, request.model, True, time.monotonic() - started, text, None)
+            data = response.json()
+            text = data["choices"][0]["message"]["content"]
+            return ProviderResult(self.name, request.model, True, time.monotonic() - started, text, None, usage_from(data))
         except Exception as exc:
             return ProviderResult(self.name, request.model, False, time.monotonic() - started, None, exc)
 
     def chat_tools(self, request):
         started = time.monotonic()
+        body = {
+            "model": request.model,
+            "messages": request.prompt,
+            "temperature": settings.LLM_TEMPERATURE,
+            "max_tokens": settings.LLM_MAX_TOKENS,
+        }
+        if request.tools:
+            body.update(tools=request.tools, tool_choice="auto")
+        if channel.is_voice() and request.model.startswith("openai/gpt-oss"):
+            body["reasoning_effort"] = "low"   # por voz importa mas la rapidez que razonar a fondo
         try:
-            response = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
+            response = _SESSION.post(
+                self.URL,
                 headers=self._headers(),
-                json={
-                    "model": request.model,
-                    "messages": request.prompt,
-                    "tools": request.tools,
-                    "tool_choice": "auto",
-                    "temperature": settings.LLM_TEMPERATURE,
-                    "max_tokens": settings.LLM_MAX_TOKENS,
-                },
+                json=body,
                 # Un proveedor cloud caido no debe dejar el chat local en
                 # silencio durante un minuto: el router prueba NVIDIA/Ollama.
                 timeout=(3.05, 15),
             )
             raise_with_body(response)
-            message = response.json()["choices"][0]["message"]
-            return ProviderResult(self.name, request.model, True, time.monotonic() - started, message, None)
+            data = response.json()
+            message = data["choices"][0]["message"]
+            return ProviderResult(self.name, request.model, True, time.monotonic() - started, message, None, usage_from(data))
         except Exception as exc:
             return ProviderResult(self.name, request.model, False, time.monotonic() - started, None, exc)
 
     def health(self):
-        if not settings.GROQ_API_KEY:
+        if not self._api_key():
             return False
         response = requests.get(
-            "https://api.groq.com/openai/v1/models",
+            self.MODELS_URL,
             headers=self._headers(),
             timeout=5,
         )
         raise_with_body(response)
         return True
 
+    def _api_key(self):
+        return settings.GROQ_API_KEY
+
     def _headers(self):
         return {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Authorization": f"Bearer {self._api_key()}",
             "Content-Type": "application/json",
         }

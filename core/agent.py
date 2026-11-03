@@ -3,10 +3,15 @@ core/agent.py
 Tool-calling agent. Provider selection lives in core/llm_router.py.
 """
 import json
+import re
 import logging
+import time
 
+from config.settings import settings
 from core.llm_types import LLMRequest
+from core import domains
 from core import llm_router as router
+from core import channel, llm_stats, privacy
 from core.tools import TOOLS, call_tool, light_tools
 
 log = logging.getLogger("jarvis.agent")
@@ -102,25 +107,86 @@ def _recent_history() -> list[dict]:
     ]
 
 
+def _previous_user(history: list[dict], user_prompt: str) -> str:
+    users = [m["content"] for m in history if m["role"] == "user"]
+    if users and users[-1] == user_prompt:
+        users.pop()
+    return users[-1] if users else ""
+
+
+def _pick(user_prompt: str, previous_user: str, turn: dict) -> tuple[list, str]:
+    """Tools y system prompt del turno: por temas si el router de dominios decide con
+    confianza; si no (o si falla), el clasificador ligera/completa de siempre."""
+    routed = None
+    if settings.DOMAIN_ROUTING:
+        try:
+            routed = domains.route(user_prompt, previous_user)
+        except Exception as e:
+            log.warning(f"[agent] enrutado por dominios fallo ({e}); uso el clasificador")
+    if routed:
+        names, score = routed
+        turn.update(branch="dominios", domains=names, score=round(score, 2))
+        return domains.tools_for(names), domains.system_prompt(names, user_prompt)
+    tools = _pick_tools(user_prompt)
+    turn["branch"] = "completa" if tools is TOOLS else "ligera"
+    return tools, AGENT_SYSTEM_PROMPT
+
+
+_FAKE_DRAFT = re.compile(r"(responde|contesta)\W+s[ií]\W+o\W+no|¿quieres (que lo )?env[ií]e?(lo|s)", re.I)
+DRAFT_TOOLS = {"preparar_mensaje", "preparar_correo_directo"}
+
+
 def run(user_prompt: str) -> str:
+    turn = {"branch": "", "domains": [], "score": 0.0, "escaped": False,
+            "rounds": 0, "tools": [], "pick_s": 0.0, "tool_s": 0.0}
+    started = time.monotonic()
+    try:
+        return _run(user_prompt, turn)
+    finally:
+        turn["pick_s"] = round(turn["pick_s"], 2)
+        turn["tool_s"] = round(turn["tool_s"], 2)
+        llm_stats.record_turn(turn, time.monotonic() - started)
+
+
+def _request(messages: list, tools: list, private: bool) -> LLMRequest:
+    return LLMRequest(prompt=messages, tools=tools, requirements={"local_only": True} if private else None)
+
+
+def _run(user_prompt: str, turn: dict) -> str:
+    private = privacy.is_forced()
     """
     Loop de tool-calling. Devuelve la respuesta final en texto plano.
     """
-    messages = [{"role": "system", "content": AGENT_SYSTEM_PROMPT}]
-    messages.extend(_recent_history())
+    history = _recent_history()
+    picked_at = time.monotonic()
+    tools, system_prompt = _pick(user_prompt, _previous_user(history, user_prompt), turn)
+    turn["pick_s"] = time.monotonic() - picked_at
+    if channel.is_voice():
+        system_prompt += channel.VOICE_HINT
+
+    messages = [{"role": "system", "content": system_prompt}]
+    messages.extend(history)
     # processor.py guarda el mensaje del usuario ANTES de invocar al agente, asi
     # que puede venir ya como ultimo item del historial -- evitar duplicarlo.
     if not (messages[-1]["role"] == "user" and messages[-1]["content"] == user_prompt):
         messages.append({"role": "user", "content": user_prompt})
 
-    tools = _pick_tools(user_prompt)
-    executed = []
+    executed = turn["tools"]
     for round_n in range(MAX_TOOL_ROUNDS):
-        message = router.chat_tools(LLMRequest(prompt=messages, tools=tools))
+        turn["rounds"] = round_n + 1
+        message = router.chat_tools(_request(messages, tools, private))
         tool_calls = message.get("tool_calls")
 
         if not tool_calls:
-            return message.get("content", "") or "No obtuve respuesta del modelo."
+            answer = message.get("content", "") or "No obtuve respuesta del modelo."
+            if _FAKE_DRAFT.search(answer) and not DRAFT_TOOLS & set(executed) and not turn.get("nudged"):
+                # El modelo enseno un "borrador" sin crearlo: un si/no posterior no tendria nada que confirmar.
+                turn["nudged"] = True
+                messages.append({"role": "assistant", "content": answer})
+                messages.append({"role": "user", "content": "[sistema] Ese borrador NO existe todavia: no has llamado a preparar_mensaje. "
+                                                            "Llamala ahora con el contacto y el texto, y luego ensena el borrador."})
+                continue
+            return answer
 
         # Ollama no pone 'id' en sus tool_calls; Groq/NVIDIA si. Si una ronda la
         # resuelve Ollama y la siguiente cambia a un provider OpenAI-estricto, el
@@ -145,17 +211,35 @@ def run(user_prompt: str) -> str:
                 # Escape de la rama ligera: recargar el set completo para las
                 # siguientes rondas (una ronda extra, sin perder capacidad).
                 tools = TOOLS
+                messages[0]["content"] = AGENT_SYSTEM_PROMPT + (channel.VOICE_HINT if channel.is_voice() else "")
+                turn["escaped"] = True
                 messages.append({
                     "role": "tool", "tool_call_id": tc["id"],
                     "content": "Herramientas completas cargadas. Continua con la accion pedida.",
                 })
                 log.info(f"[agent] ronda={round_n} escalado a set completo de tools")
                 continue
+            if fn_name not in {t["function"]["name"] for t in tools}:
+                log.warning(f"[agent] ronda={round_n} tool={fn_name} NO ofrecida en esta ronda; rechazada")
+                messages.append({
+                    "role": "tool", "tool_call_id": tc["id"],
+                    "content": json.dumps({"error": f"La herramienta '{fn_name}' no esta disponible ahora. "
+                                                    "Si necesitas actuar, llama a usar_herramientas."}),
+                })
+                continue
+            tool_started = time.monotonic()
             result = call_tool(fn_name, args)
+            turn["tool_s"] += time.monotonic() - tool_started
             executed.append(fn_name)
+            limit = MAX_TOOL_RESULT_CHARS
+            if privacy.is_private(fn_name, result):
+                private = True
+                privacy.mark_private()
+                turn["private"] = True
+                limit = privacy.MAX_PRIVATE_RESULT_CHARS
             content = json.dumps(result, ensure_ascii=False, default=str)
-            if len(content) > MAX_TOOL_RESULT_CHARS:
-                content = content[:MAX_TOOL_RESULT_CHARS] + " …(resultado truncado)"
+            if len(content) > limit:
+                content = content[:limit] + " …(resultado truncado)"
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc["id"],
@@ -166,7 +250,7 @@ def run(user_prompt: str) -> str:
     # todo lo recogido, una llamada final para que el modelo redacte la
     # respuesta con los resultados que ya tiene en `messages`.
     try:
-        final = router.chat_tools(LLMRequest(prompt=messages, tools=tools))
+        final = router.chat_tools(_request(messages, tools, private))
         content = final.get("content")
         if content:
             return content

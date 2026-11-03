@@ -1,3 +1,4 @@
+from providers.cerebras import CerebrasProvider
 from providers.groq import GroqProvider
 from providers.nvidia import NvidiaProvider
 from providers.ollama import OllamaProvider
@@ -9,4 +10,5 @@ PROVIDERS = {
     "nvidia": NvidiaProvider(),
     "ollama": OllamaProvider(),
     "kimi": KimiProvider(),
+    "cerebras": CerebrasProvider(),
 }

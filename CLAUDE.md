@@ -81,6 +81,12 @@ NO es "Ollama local con fallback a Anthropic". La selección de modelo es
   para "guarda esto en tu memoria" (source = tema) y `search_memory(source=...)`
   para filtrar. Respuestas de entrevista: `data/entrevista_qa.json` →
   `python scripts/load_entrevista.py` (source `entrevista`, idempotente).
+- Memorias destiladas de las sesiones de Claude Code (preferencias, decisiones,
+  infra, estado): `data/claude_code_memorias.json` (fuera de git, datos personales;
+  cada entrada tiene `sensible`/`incluir`) → `python scripts/load_claude_code.py`
+  (source `claude_code`, idempotente, solo `incluir=true`). La tool `search_memory`
+  sin `source` mezcla las 2 mejores de `claude_code` si superan similitud 0.64,
+  porque las ~4.000 memorias de ChatGPT las tapaban.
 - Historial migrado ya ingerido: ~8.500 memorias (Claude 277 + Gemini 913 +
   ChatGPT 7328) vía `scripts/ingest_all.py --source claude|gemini|chatgpt`.
 
@@ -111,6 +117,29 @@ NO es "Ollama local con fallback a Anthropic". La selección de modelo es
   cloud, voz=navegador) → no compite con dolphin. El micro necesita contexto
   seguro: va en `http://127.0.0.1:3000/ui`, no por IP de la tailnet (http). Mejora
   futura de voz: ElevenLabs (cloud, API key) o Piper/Kokoro en CPU.
+
+4. **Cara en el móvil** (`web/face.html`, ruta pública `/face`): terminal mínimo con
+   cara animada (ojos/boca/cejas) que reacciona al texto. Tocar = hablar → `/extract`
+   (Whisper) → `/chat` → voz del sistema con labios. Emoción por reglas de emojis y
+   palabras o por etiqueta opcional `[emoción:feliz]` en la respuesta (la API no la
+   emite aún). La clave NO va en el HTML: se pide con pulsación larga y se guarda en
+   el móvil. HTTPS (necesario para el micro) vía `tailscale serve` ya activo:
+   `https://pc-supermolon.taild7b9e6.ts.net` → `127.0.0.1:3000`. Dispositivo: Mi Note
+   10 Lite (`toco`, MIUI 13, bootloader cerrado; LineageOS no lo soporta) en la
+   tailnet como `mi-note-10-lite`, vaciado con `adb pm uninstall --user 0`
+   (lista en `C:\Users\Usuario\android-tools\paquetes_quitados.txt`).
+   OJO: uvicorn escucha en `0.0.0.0:3000` (el relay de Figaro entra por la IP
+   Tailscale), así que el puerto también lo ve la LAN; pendiente limitarlo.
+
+## Privacidad y modo privado (`core/privacy.py`)
+- **Modo privado** (persistente, bandera `data/modo_privado.flag`): `/privado` o «modo privado» lo activa; `/publico` o
+  «modo normal» lo desactiva; `/privado?` informa; `/privado <msg>` o `privado: <msg>` lo aplica a un solo mensaje
+  (el relay de Telegram no reenvia los que empiezan por `/`, usar las palabras). En modo privado el router solo admite
+  proveedores locales (`LOCAL_PROVIDERS = {ollama}`, falla antes que usar la nube), la voz se rechaza (Whisper es Groq) y
+  no se guarda ni el mensaje ni la respuesta (marcadores) en `conversations`, memoria (RAG) ni `intents`. Respuesta con `[🔒 ...]`.
+- **Herramienta privada** (`PRIVATE_TOOLS` o resultado con `"_privado": true`): tras ejecutarla, el resto del turno es local.
+  Contenido de chats de WhatsApp solo debe salir por herramientas privadas (fase 3, aun sin hacer).
+- Otras fugas ya tapadas: los enlaces `wa.me` de las confirmaciones no se guardan en el historial.
 
 ## Dominios / capacidades
 - **Centro de Mando** (tareas): `connectors/mando_tasks.py` + `mando_sync.py` →
@@ -186,6 +215,14 @@ Si un ID configurado desaparece, el modelo deja de servir.
   arquitectura vieja "solo local + Anthropic"; DB puesta como `jarvis_v2`).
 - `POSTGRES_PASSWORD` en texto plano; credenciales Garmin en `.env` en claro.
 - Alpha50: rate-limit 429 de Garmin sin resolver.
+- **Modelos locales (evaluados 2026-10-25, `scripts/eval_modelos_locales.py --aplicar`)**: el orden para herramientas lo marca la puntuacion
+  medida en `config/puntuaciones_locales.json` (el router la usa como `role_priority.tools`; <40 = no fiable, se descarta). Orden: qwen3:8b 96.6,
+  qwen3.5:9b 94.9, ministral-3:8b 93.0, dolphin3:8b 91.9 (herramientas emuladas), qwen2.5:7b 90.3, hermes3:8b 84.7. Los modelos sin plantilla de
+  herramientas (dolphin) o que no las llaman (mistral, `"tool_mode": "emulated"`) usan `core/tool_emulation.py`. Repetir la evaluacion al cambiar modelos.
+- **Alpha50** solo atiende mensajes que EMPIEZAN por `/alpha50` (`alpha50/scheduler.py`); su pregunta pendiente caduca a las 2 h. El relay de Figaro
+  reenvia `/alpha50` (desplegado 2026-10-25; copias `.bak.20261025-1214` en `/opt/jarvis-relay/`).
+- Fase 3 de WhatsApp hecha: `resumir_chat` y `redactar_como_yo` (`core/chat_private.py`, privadas; estilo indexado con `scripts/indexar_estilo.py`).
+- Voz privada: Whisper local (faster-whisper en CPU) para poder hablar en modo privado; opcional, puede chocar con el bloqueo de DLL de Windows.
 - TLS de Fígaro: cert de Tailscale en `/etc/ssl/figaro-server.taild7b9e6.ts.net.crt`,
   servido por nginx (proxy a node `/opt/mando` `:10003`). Auto-renovación por cron
   semanal (`/etc/cron.d/tailscale-cert-renew`). Si falla TLS, revisar ese cron y

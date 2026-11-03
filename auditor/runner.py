@@ -7,6 +7,7 @@ import threading
 import argparse
 from datetime import datetime
 
+from auditor.allowed_paths import is_path_allowed, allowed_roots_str
 from auditor.db import (
     init_db, create_job, update_job,
     add_phase, update_phase, get_phases,
@@ -101,7 +102,13 @@ def start_audit_thread(repo_path: str) -> int:
     """
     Crea el job en SQLite y lanza el thread.
     Devuelve job_id para que la API pueda hacer polling.
+    Lanza PermissionError si la ruta no esta en la lista blanca: la comprobacion
+    vive aqui para que ningun llamador (agente, fallback de intents, API) la evite.
     """
+    if not is_path_allowed(repo_path):
+        raise PermissionError(
+            f"Ruta no permitida para auditar: {repo_path}. Permitidas: {allowed_roots_str()}"
+        )
     init_db()
     job_id = create_job(repo_path)
     t = threading.Thread(target=run_audit, args=(job_id, repo_path), daemon=True)

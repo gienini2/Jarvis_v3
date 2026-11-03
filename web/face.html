@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#000000">
+<title>Jarvis · cara</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:manipulation;-webkit-user-select:none;user-select:none;font-family:system-ui,sans-serif}
+#stage{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+svg{width:min(94vw,94vh);max-height:76vh;height:auto}
+#sub{white-space:pre-line;color:#9fb3c8;font-size:clamp(14px,3.6vw,22px);text-align:center;padding:0 7vw;min-height:3.4em;max-width:100vw;transition:opacity .8s}
+#waBtn{position:fixed;left:50%;transform:translateX(-50%);bottom:max(22px,env(safe-area-inset-bottom));display:none;z-index:5;padding:16px 28px;border-radius:40px;background:#25d366;color:#04210f;font:700 20px system-ui,sans-serif;text-decoration:none;box-shadow:0 4px 18px rgba(0,0,0,.5)}
+#waBtn.on{display:block}
+#detail{position:fixed;left:0;right:0;bottom:0;max-height:55vh;overflow:auto;background:rgba(7,15,24,.97);border-top:1px solid #234;display:none;padding:6px 14px 18px;-webkit-user-select:text;user-select:text}
+#detail.on{display:block}
+#detailClose{position:sticky;top:0;float:right;background:#134;color:#eef;border:1px solid #345;border-radius:8px;font-size:18px;padding:4px 12px}
+.row{padding:9px 0;border-bottom:1px solid #1b2b3a;color:#dbe7f3}
+.row .main{font-size:17px;font-weight:600}
+.row .sub{font-size:14px;color:#9fb3c8;margin-top:2px}
+body.withDetail #stage{bottom:55vh}
+body.withDetail svg{max-height:30vh}
+body.withDetail #sub{min-height:0}
+#timing{color:#5d7186;font-size:12px;text-align:center;min-height:1.2em}
+#lock{position:fixed;top:8px;left:12px;font-size:20px;display:none;opacity:.85}
+#lock.on{display:block}
+#dot{position:fixed;top:12px;right:14px;width:10px;height:10px;border-radius:50%;background:#2c2;opacity:.55}
+#dot.off{background:#d33}
+#panel{position:fixed;inset:0;background:rgba(0,0,0,.94);display:none;flex-direction:column;gap:12px;justify-content:center;padding:8vw;color:#dde;font-size:16px}
+#panel.on{display:flex}
+#panel input,#panel button{font-size:18px;padding:12px;border-radius:10px;border:1px solid #345;background:#0b1520;color:#eef}
+#panel button{background:#134;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="stage">
+  <svg id="face" viewBox="0 0 400 360" xmlns="http://www.w3.org/2000/svg">
+    <g id="g" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse id="eL" fill="#6fe3ff"/>
+      <ellipse id="eR" fill="#6fe3ff"/>
+      <ellipse id="cL" fill="#000"/>
+      <ellipse id="cR" fill="#000"/>
+      <line id="bL" stroke="#6fe3ff" stroke-width="9"/>
+      <line id="bR" stroke="#6fe3ff" stroke-width="9"/>
+      <path id="mouth" stroke="#6fe3ff" stroke-width="9" fill="#6fe3ff"/>
+    </g>
+  </svg>
+  <div id="sub"></div>
+  <div id="timing"></div>
+</div>
+<a id="waBtn" href="#" target="_blank" rel="noopener">📲 Abrir WhatsApp</a>
+<div id="detail"><button id="detailClose" aria-label="Cerrar">✕</button><div id="detailRows"></div></div>
+<div id="lock">🔒</div>
+<div id="dot"></div>
+<div id="panel">
+  <label>Dirección de Jarvis <input id="pBase" placeholder="https://tu-pc.tu-tailnet.ts.net"></label>
+  <label>Clave de la API <input id="pKey" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="X-Jarvis-Key"></label>
+  <label>Escribir a Jarvis <input id="pText" placeholder="mensaje y Enter"></label>
+  <button id="pSave">Guardar y cerrar</button>
+</div>
+<script>
+const $ = (s) => document.querySelector(s);
+const store = {
+  get: (k) => { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} },
+};
+const base = () => store.get("jbase") || (location.protocol.startsWith("http") ? location.origin : "");
+
+const EMO = {
+  neutral:   { eye: 1,   bl: 0,   br: 0,   tilt: 0,    smile: .25, w: 1 },
+  happy:     { eye: .78, bl: -.2, br: -.2, tilt: 0,    smile: 1,   w: 1.2 },
+  sad:       { eye: .85, bl: .1,  br: .1,  tilt: .9,   smile: -.8, w: .85 },
+  worried:   { eye: 1.05, bl: -.1, br: -.1, tilt: .7,  smile: -.35, w: .9 },
+  surprised: { eye: 1.3, bl: -.9, br: -.9, tilt: 0,    smile: 0,   w: .6 },
+  doubt:     { eye: .95, bl: .1,  br: -.8, tilt: -.2,  smile: -.05, w: .8 },
+};
+const SYNONYMS = {
+  feliz: "happy", alegre: "happy", contento: "happy", contenta: "happy",
+  triste: "sad", preocupada: "worried", preocupado: "worried", alerta: "worried",
+  sorpresa: "surprised", sorprendida: "surprised", sorprendido: "surprised",
+  duda: "doubt", curiosa: "doubt", curioso: "doubt", neutral: "neutral",
+};
+const words = (list) => new RegExp("(?<!\\p{L})(?:" + list + ")(?!\\p{L})", "giu");
+const RULES = [
+  ["happy", /😀|😃|😄|😁|😊|🙂|😎|🚀|🎉|👍|✅|💪|🔥|🙌|👏|❤️|😍|🥰/gu, words("perfecto|genial|excelente|me alegra|enhorabuena|felicidades|listo|hecho|gracias|bien")],
+  ["sad", /😢|😞|😔|🙁|😭|💔/gu, words("lo siento|lamento|desafortunadamente|pena")],
+  ["worried", /⚠️|⚠|😟|😰|❌|🚨|😬/gu, words("error|fall[oó]|fallo|no pude|no he podido|cuidado|ojo|problema|atenci[oó]n")],
+  ["surprised", /😮|😲|🤯|😳|🤩/gu, words("vaya|sorprendente|incre[ií]ble|wow")],
+  ["doubt", /🤔|😕|🧐|🤨/gu, words("quiz[aá]s?|tal vez|no estoy seguro|depende|no s[eé]")],
+];
+const TAG = /\[emoci[oó]n\s*:\s*([^\]]+)\]/i;
+
+function emotionOf(text) {
+  const tag = TAG.exec(text);
+  if (tag) {
+    const key = tag[1].trim().toLowerCase();
+    if (EMO[key]) return key;
+    if (SYNONYMS[key]) return SYNONYMS[key];
+  }
+  const score = Object.fromEntries(RULES.map(([name]) => [name, 0]));
+  for (const [name, emojis, wordsRe] of RULES) {
+    score[name] += 2 * (text.match(emojis) || []).length + (text.match(wordsRe) || []).length;
+  }
+  if (/\?\s*(\p{Extended_Pictographic}|️|\s)*$/u.test(text)) score.doubt += 1;
+  const [best, value] = Object.entries(score).sort((a, b) => b[1] - a[1])[0];
+  return value >= 1 ? best : "neutral";
+}
+
+let state = "idle", emotion = "neutral", emoUntil = 0, lastActivity = Date.now();
+const VISEMES = [{ open: .9, w: 1 }, { open: .55, w: .6 }, { open: .3, w: 1.3 }, { open: .05, w: .9 }, { open: .75, w: .85 }];
+const POSE = {
+  neutral: { sq: 0, hy: 0, rot: 0, sc: 1 }, happy: { sq: .5, hy: -2, rot: 0, sc: 1.02 }, sad: { sq: 0, hy: 10, rot: -3, sc: .98 },
+  worried: { sq: 0, hy: 3, rot: 3, sc: 1 }, surprised: { sq: 0, hy: -4, rot: 0, sc: 1.08, op: .45 }, doubt: { sq: 0, hy: 0, rot: 6, sc: 1 },
+};
+let speakPulse = 0, blinkUntil = 0, nextBlink = performance.now() + 3000, bounceUntil = 0, lastT = 0, lid = 1;
+let gaze = { x: 0, y: 0, next: 0 }, viseme = VISEMES[3], nextViseme = 0;
+const cur = { eye: 1, ex: 0, ey: 0, bl: 0, br: 0, tilt: 0, smile: .25, w: 1, open: 0, dim: 1, sq: 0, hx: 0, hy: 0, rot: 0, sc: 1, mx: 0 };
+const vel = Object.fromEntries(Object.keys(cur).map((k) => [k, 0]));
+
+function goal(t) {
+  const e = EMO[emotion], p = POSE[emotion] || POSE.neutral;
+  const g = { eye: e.eye, ex: 0, ey: 0, bl: e.bl, br: e.br, tilt: e.tilt, smile: e.smile, w: e.w, open: p.op || 0, dim: 1,
+              sq: p.sq, hx: 0, hy: p.hy, rot: p.rot, sc: p.sc * (1 + Math.sin(t / 1300) * .012), mx: 0 };
+  if (t > gaze.next) gaze = { x: (Math.random() - .5) * 1.3, y: (Math.random() - .5) * .8, next: t + 1200 + Math.random() * 2600 };
+  if (state === "idle") {
+    Object.assign(g, { ex: gaze.x, ey: gaze.y, hx: Math.sin(t / 2600) * 3 });
+    g.rot += Math.sin(t / 1900) * 1.8; g.hy += Math.sin(t / 1400) * 3;
+    g.bl += Math.sin(t / 2300) * .08; g.br += Math.sin(t / 2300 + 1) * .08;
+    if (emotion === "happy" && t < bounceUntil) g.hy -= Math.abs(Math.sin(t / 180)) * 8;
+  } else if (state === "listening") {
+    Object.assign(g, { eye: 1.05 + micLevel * .5, bl: -.3, br: -.3, smile: .05, w: .7, ex: gaze.x * .3, ey: gaze.y * .3 });
+    g.sc *= 1.04; g.hy -= micLevel * 6; g.rot += Math.sin(t / 700) * 1.2;
+  } else if (state === "thinking") {
+    Object.assign(g, { ex: -.5 + Math.sin(t / 700) * .35, ey: -.6 + Math.sin(t / 1100) * .15, smile: 0, w: .8, mx: -14, bl: -.2, br: .15 });
+    g.rot = 4 + Math.sin(t / 900) * 2;
+  } else if (state === "speaking") {
+    if (t > nextViseme) { viseme = VISEMES[(Math.random() * VISEMES.length) | 0]; nextViseme = t + 80 + Math.random() * 110; }
+    g.open = Math.min(1, viseme.open * (.75 + .25 * Math.sin(t / 330)) + speakPulse * .4);
+    g.w = e.w * viseme.w;
+    g.ex = gaze.x * .5; g.ey = gaze.y * .4; g.hx = Math.sin(t / 700) * 3;
+    g.hy += -speakPulse * 7 + Math.sin(t / 260) * 2; g.rot += Math.sin(t / 520) * 2.6;
+    g.bl -= speakPulse * .6; g.br -= speakPulse * .6;
+    if (emotion === "happy") g.hy -= Math.abs(Math.sin(t / 200)) * 4;
+  } else if (state === "sleeping") Object.assign(g, { eye: .06, smile: .15, dim: .3, hy: g.hy + 5 });
+  else if (state === "offline") Object.assign(g, { eye: .5, smile: -.5, dim: .5 });
+  if (t > nextBlink) {
+    blinkUntil = t + 110 + Math.random() * 60;
+    nextBlink = Math.random() < .2 ? t + 280 : t + 2200 + Math.random() * 3800;
+  }
+  return g;
+}
+
+const el = { eL: $("#eL"), eR: $("#eR"), cL: $("#cL"), cR: $("#cR"), bL: $("#bL"), bR: $("#bR"), mouth: $("#mouth"), g: $("#g") };
+function draw() {
+  const c = cur, ry = Math.max(2, 38 * Math.max(.05, c.eye) * lid), ox = c.ex * 14, oy = c.ey * 12;
+  for (const [eye, cheek, cx] of [[el.eL, el.cL, 125], [el.eR, el.cR, 275]]) {
+    eye.setAttribute("cx", cx + ox); eye.setAttribute("cy", 140 + oy); eye.setAttribute("rx", 30); eye.setAttribute("ry", ry);
+    cheek.setAttribute("cx", cx + ox); cheek.setAttribute("cy", 140 + oy + 42 - c.sq * 30);
+    cheek.setAttribute("rx", 40); cheek.setAttribute("ry", 10 + Math.max(0, c.sq) * 40);
+    cheek.setAttribute("fill-opacity", Math.min(1, Math.max(0, c.sq) * 4));
+  }
+  const brow = (node, cx, y, inner) => {
+    const inY = y - c.tilt * 16, outY = y + c.tilt * 16;
+    node.setAttribute("x1", cx - 36 * inner); node.setAttribute("y1", inner > 0 ? outY : inY);
+    node.setAttribute("x2", cx + 36 * inner); node.setAttribute("y2", inner > 0 ? inY : outY);
+  };
+  brow(el.bL, 125 + ox, 78 + c.bl * 26 + oy, 1);
+  brow(el.bR, 275 + ox, 78 + c.br * 26 + oy, -1);
+  const hw = 70 * Math.max(.3, c.w), my = 272, up = c.smile * 46, open = Math.min(1.2, Math.max(0, c.open)), lo = up + open * 100, mx = c.mx;
+  el.mouth.setAttribute("d", `M ${200 + mx - hw} ${my} Q ${200 + mx} ${my + up} ${200 + mx + hw} ${my} Q ${200 + mx} ${my + lo} ${200 + mx - hw} ${my} Z`);
+  el.mouth.setAttribute("fill-opacity", Math.min(1, open * 4));
+  el.g.setAttribute("opacity", Math.min(1, Math.max(0, c.dim)));
+  el.g.setAttribute("transform", `translate(${c.hx} ${c.hy}) translate(200 190) rotate(${c.rot}) scale(${c.sc}) translate(-200 -190)`);
+}
+function frame(t) {
+  const dt = Math.min(2.5, (t - lastT) / 16.7 || 1);
+  lastT = t;
+  const g = goal(t);
+  for (const k in cur) {
+    vel[k] += (g[k] - cur[k]) * .1 * dt;
+    vel[k] *= Math.pow(.78, dt);
+    cur[k] += vel[k] * dt;
+  }
+  lid += ((t < blinkUntil && state !== "sleeping" ? .06 : 1) - lid) * Math.min(1, .6 * dt);
+  speakPulse *= Math.pow(.9, dt);
+  if (state === "idle" && emotion !== "neutral" && t > emoUntil) emotion = "neutral";
+  if (state === "idle" && Date.now() - lastActivity > 120000) state = "sleeping";
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+const sub = $("#sub");
+let subTimer = 0;
+function say(text, ms = 12000) {
+  sub.textContent = text; sub.style.opacity = 1;
+  clearTimeout(subTimer); subTimer = setTimeout(() => { sub.style.opacity = 0; }, ms);
+}
+function touch() { lastActivity = Date.now(); if (state === "sleeping") state = "idle"; }
+
+async function api(path, body) {
+  const headers = { "Content-Type": "application/json" };
+  const key = store.get("jkey"); if (key) headers["X-Jarvis-Key"] = key;
+  const r = await fetch(base() + path, { method: "POST", headers, body: JSON.stringify(body) });
+  if (!r.ok) {
+    let msg = "";
+    try { msg = (await r.json()).error || ""; } catch (e) {}
+    throw new Error(r.status === 401 ? "clave incorrecta" : (msg || "error " + r.status));
+  }
+  return r.json();
+}
+
+const BACKEND_TAG = /^\s*(\[[^\]\n]{2,28}\]\s*)+/;
+const MAX_SPOKEN = 420, MAX_SHOWN = 320, SILENCE_MS = 700;
+let timing = {};
+
+function plain(text) {
+  return text.replace(TAG, "").replace(BACKEND_TAG, "").replace(/```[\s\S]*?```/g, " ")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/(enlace|link|url)?\s*:?\s*https?:\/\/\S+/gi, "").replace(/^#{1,6}\s*/gm, "").replace(/\*\*|__|~~|`/g, "")
+    .replace(/^[\s|:\-]+$/gm, "").replace(/^\s*[-*•]\s+/gm, "• ").replace(/\|/g, " ")
+    .replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
+}
+function spokenText(text) {
+  let s = plain(text).replace(/(enlace|link|url|reuni[oó]n)?\s*:?\s*https?:\/\/\S+/gi, " ").replace(/\b[0-9a-f]{8,}\b/gi, " ")
+    .replace(/\p{Extended_Pictographic}|️/gu, "").replace(/^•\s*/gm, "").replace(/\s*\n\s*/g, ". ")
+    .replace(/\s+([:.,;!?])/g, "$1").replace(/([:;])\s*\./g, "$1").replace(/\.(\s*\.)+/g, ".").replace(/\s+/g, " ").trim();
+  if (s.length <= MAX_SPOKEN) return s;
+  const cut = s.slice(0, MAX_SPOKEN), end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
+  return (end > 120 ? cut.slice(0, end + 1) : cut) + " El resto está en pantalla.";
+}
+function esVoice() {
+  const vs = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
+  return vs.find((v) => /^es[-_]/i.test(v.lang)) || vs.find((v) => v.lang && v.lang.toLowerCase().startsWith("es")) || null;
+}
+const isTableRow = (l) => /^\s*\|.*\|\s*$/.test(l);
+const isBullet = (l) => /^\s*([-*•]|\d+[.)])\s+\S/.test(l);
+const cells = (l) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim().replace(/\*\*|`/g, ""));
+
+function splitDetails(text) {
+  const lines = text.replace(TAG, "").replace(BACKEND_TAG, "").split("\n"), keep = [], details = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (isTableRow(lines[i]) && i + 1 < lines.length && isTableRow(lines[i + 1]) && /^[\s|:\-]+$/.test(lines[i + 1])) {
+      const headers = cells(lines[i]), rows = [];
+      i += 2;
+      while (i < lines.length && isTableRow(lines[i])) rows.push(cells(lines[i++]));
+      i--;
+      details.push({ headers, rows });
+    } else if (isBullet(lines[i])) {
+      const start = i, items = [];
+      while (i < lines.length && isBullet(lines[i])) items.push([lines[i++].replace(/^\s*([-*•]|\d+[.)])\s+/, "").replace(/\*\*|`/g, "")]);
+      i--;
+      if (items.length >= 4) details.push({ headers: [], rows: items });
+      else keep.push(...lines.slice(start, i + 1));
+    } else keep.push(lines[i]);
+  }
+  return { prose: keep.join("\n"), details };
+}
+
+const detailBox = $("#detail"), detailRows = $("#detailRows");
+let detailTimer = 0;
+function hideDetail() { detailBox.classList.remove("on"); document.body.classList.remove("withDetail"); clearTimeout(detailTimer); }
+function showDetail(details) {
+  detailRows.textContent = "";
+  for (const t of details) for (const row of t.rows) {
+    const div = document.createElement("div"); div.className = "row";
+    row.forEach((cell, i) => {
+      const part = document.createElement("div"); part.className = i === 0 ? "main" : "sub";
+      part.textContent = (i > 0 && t.headers[i] ? t.headers[i] + ": " : "") + cell;
+      div.appendChild(part);
+    });
+    detailRows.appendChild(div);
+  }
+  detailBox.classList.add("on"); document.body.classList.add("withDetail");
+  detailBox.scrollTop = 0; clearTimeout(detailTimer); detailTimer = setTimeout(hideDetail, 120000);
+}
+$("#detailClose").onclick = hideDetail;
+
+const waBtn = $("#waBtn");
+let waTimer = 0;
+function hideWhatsApp() { waBtn.classList.remove("on"); clearTimeout(waTimer); }
+waBtn.addEventListener("click", () => setTimeout(hideWhatsApp, 300));
+function offerWhatsApp(text) {
+  const link = /https:\/\/wa\.me\/\d+\?text=\S*/.exec(text);
+  if (!link) { hideWhatsApp(); return; }
+  waBtn.href = link[0];
+  waBtn.classList.add("on");
+  clearTimeout(waTimer); waTimer = setTimeout(hideWhatsApp, 180000);
+}
+
+function reply(text) {
+  $("#lock").classList.toggle("on", /^\s*\[🔒/.test(text));
+  offerWhatsApp(text);
+  const { prose, details } = splitDetails(text);
+  const count = details.reduce((n, t) => n + t.rows.length, 0);
+  emotion = emotionOf(plain(prose) + " " + (TAG.exec(text) || [""])[0]);
+  if (emotion === "happy") bounceUntil = performance.now() + 1600;
+  if (count) showDetail(details); else hideDetail();
+  const intro = plain(prose);
+  const shown = intro || (count ? "Aquí tienes los resultados." : "");
+  say(shown.length > MAX_SHOWN ? shown.slice(0, MAX_SHOWN - 1) + "…" : shown, 15000);
+  let clean = spokenText(prose);
+  if (count) {
+    const firsts = details[0].rows.map((r) => r[0]).filter(Boolean);
+    clean += count <= 3 && firsts.length ? ` Son: ${firsts.join(", ")}.` : ` Te dejo ${count} resultados en pantalla.`;
+  }
+  const finish = () => { state = "idle"; emoUntil = Date.now() + 4000; };
+  if (!clean || !("speechSynthesis" in window)) { state = "speaking"; setTimeout(finish, Math.min(8000, 800 + clean.length * 45)); return; }
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(clean), v = esVoice();
+  if (v) u.voice = v;
+  u.lang = (v && v.lang) || "es-ES"; u.rate = 1.05;
+  u.onboundary = () => { speakPulse = .5; };
+  u.onstart = () => { timing.voz = performance.now() - timing.replyAt; showTiming(); };
+  u.onend = u.onerror = finish;
+  state = "speaking";
+  speechSynthesis.speak(u);
+}
+
+async function ask(text) {
+  state = "thinking"; say("🎤 " + text, 4000);
+  try {
+    const t0 = performance.now();
+    const d = await api("/chat", { message: text, canal: "voz" });
+    timing.jarvis = performance.now() - t0; timing.replyAt = performance.now();
+    timing.modelo = modelLabel(d.response || "");
+    reply(d.response || "");
+  } catch (e) {
+    emotion = "worried"; state = "idle"; emoUntil = Date.now() + 5000; say("No he podido hablar con Jarvis: " + e.message);
+  }
+}
+
+let lastQuiet = 0, rec = null, chunks = [], stream = null, audioCtx = null, meter = 0, heard = false, maxRms = 0, micLevel = 0;
+function warmUp() { api("/calentar", {}).catch(() => {}); }
+warmUp();
+async function listen() {
+  warmUp();
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    say("El micrófono necesita HTTPS. Usa la dirección https de Tailscale.", 9000); return;
+  }
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } }); }
+  catch (e) { emotion = "worried"; emoUntil = Date.now() + 6000; say(`No puedo usar el micrófono (${e.name}). Permite el micro para este sitio en Chrome.`, 15000); return; }
+  chunks = []; heard = false;
+  rec = new MediaRecorder(stream);
+  rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+  rec.onstop = onRecorded;
+  rec.start();
+  state = "listening"; emotion = "neutral"; hideDetail(); hideWhatsApp();
+  say("Te escucho… toca de nuevo para enviar", 30000);
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  await audioCtx.resume();
+  const an = audioCtx.createAnalyser(); an.fftSize = 1024;
+  const sink = audioCtx.createGain(); sink.gain.value = 0;
+  audioCtx.createMediaStreamSource(stream).connect(an);
+  an.connect(sink); sink.connect(audioCtx.destination);
+  const buf = new Uint8Array(an.fftSize), started = Date.now();
+  let quietSince = Date.now(), smooth = 0, loudRun = 0, floor = 0, floorN = 0;
+  maxRms = 0;
+  meter = setInterval(() => {
+    an.getByteTimeDomainData(buf);
+    let sum = 0; for (const b of buf) sum += ((b - 128) / 128) ** 2;
+    const rms = Math.sqrt(sum / buf.length), now = Date.now();
+    smooth = smooth * .5 + rms * .5;
+    micLevel = Math.min(1, smooth * 8); maxRms = Math.max(maxRms, rms);
+    if (now - started < 600) { floor += smooth; floorN++; return; }
+    const noise = floor / Math.max(1, floorN), limit = Math.max(.02, noise * 2.5);
+    sub.textContent = `Te escucho… nivel ${smooth.toFixed(3)} (voz > ${limit.toFixed(3)}) · toca para enviar`;
+    if (smooth > limit) { loudRun++; quietSince = now; lastQuiet = now; if (loudRun >= 3) heard = true; } else loudRun = 0;
+    if ((heard && now - quietSince > SILENCE_MS) || (!heard && now - started > 8000) || now - started > 20000) stopListening();
+  }, 100);
+}
+const FAMILY_ICONS = [[/^qwen/, "👑🏠"], [/^(mistral|ministral)/, "🌬️🏠"], [/^dolphin/, "🐬"]];
+function modelLabel(text) {
+  const m = String(text).match(/^\s*\[(🔒\s*)?([a-z0-9_-]+)\]/i);
+  if (!m) return "";
+  const name = m[2].toLowerCase();
+  const fixed = { groq: "⚡", nvidia: "🟢", kimi: "🌙", local: "💻" }[name];
+  const fam = FAMILY_ICONS.find(([re]) => re.test(name));
+  return (m[1] ? "🔒 " : "") + (fixed || (fam && fam[1]) || (name.endsWith("-local") ? "🏠" : "🤖")) + " " + name;
+}
+function showTiming() {
+  const f = (ms) => (ms == null ? "–" : (ms / 1000).toFixed(1));
+  const total = (timing.silencio || 0) + (timing.transcr || 0) + (timing.jarvis || 0) + (timing.voz || 0);
+  $("#timing").textContent = `⏱ silencio ${f(timing.silencio)} · transcr ${f(timing.transcr)} · Jarvis ${f(timing.jarvis)} · voz ${f(timing.voz)} = ${f(total)} s${timing.modelo ? " · " + timing.modelo : ""}`;
+  timing = {};
+}
+function stopListening() {
+  timing = { silencio: Math.max(0, Date.now() - lastQuiet) };
+  clearInterval(meter);
+  if (rec && rec.state !== "inactive") rec.stop();
+}
+async function onRecorded() {
+  stream.getTracks().forEach((t) => t.stop());
+  if (audioCtx) audioCtx.close();
+  micLevel = 0;
+  if (!heard || !chunks.length) {
+    state = "idle"; emotion = "doubt"; emoUntil = Date.now() + 5000;
+    say(`No te he oído (nivel ${maxRms.toFixed(3)}). Habla más cerca o revisa el permiso del micrófono.`, 12000);
+    return;
+  }
+  state = "thinking";
+  try {
+    const mime = (rec && rec.mimeType) || "audio/webm";
+    const blob = new Blob(chunks, { type: mime });
+    const b64 = await new Promise((res, rej) => {
+      const r = new FileReader(); r.onload = () => res(String(r.result).split(",", 2)[1] || ""); r.onerror = rej; r.readAsDataURL(blob);
+    });
+    const ext = mime.includes("ogg") ? "ogg" : (mime.includes("mp4") ? "m4a" : "webm");
+    const tx0 = performance.now();
+    const d = await api("/extract", { name: "voz." + ext, content_b64: b64 });
+    timing.transcr = performance.now() - tx0;
+    const text = (d.text || "").trim();
+    if (!text) { state = "idle"; say("No te he entendido."); return; }
+    await ask(text);
+  } catch (e) {
+    emotion = "worried"; state = "idle"; emoUntil = Date.now() + 5000; say("No pude transcribir: " + e.message);
+  }
+}
+
+function onTap() {
+  touch();
+  if (state === "listening") stopListening();
+  else if (state === "speaking") { speechSynthesis.cancel(); state = "idle"; }
+  else if (state === "idle") listen();
+}
+let pressTimer = 0;
+const stage = $("#stage");
+stage.addEventListener("pointerdown", () => { pressTimer = setTimeout(() => { pressTimer = 0; openPanel(); }, 700); });
+function goFullscreen() {
+  const root = document.documentElement;
+  if (!document.fullscreenElement && root.requestFullscreen) root.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
+}
+stage.addEventListener("pointerup", () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = 0; goFullscreen(); onTap(); } });
+stage.addEventListener("pointerleave", () => { clearTimeout(pressTimer); pressTimer = 0; });
+
+const panel = $("#panel");
+function openPanel() {
+  $("#pBase").value = store.get("jbase") || base();
+  $("#pKey").value = store.get("jkey");
+  panel.classList.add("on");
+}
+$("#pSave").onclick = () => {
+  store.set("jbase", $("#pBase").value.trim().replace(/\/$/, ""));
+  store.set("jkey", $("#pKey").value.trim());
+  panel.classList.remove("on"); checkHealth();
+};
+$("#pText").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || !e.target.value.trim()) return;
+  const text = e.target.value.trim(); e.target.value = "";
+  store.set("jbase", $("#pBase").value.trim().replace(/\/$/, "")); store.set("jkey", $("#pKey").value.trim());
+  panel.classList.remove("on"); touch(); ask(text);
+});
+
+const dot = $("#dot");
+async function checkHealth() {
+  try {
+    const r = await fetch(base() + "/health", { cache: "no-store" });
+    dot.classList.toggle("off", !r.ok);
+    if (r.ok && state === "offline") state = "idle";
+    if (!r.ok && state === "idle") state = "offline";
+  } catch (e) {
+    dot.classList.add("off");
+    if (state === "idle") state = "offline";
+  }
+}
+checkHealth(); setInterval(checkHealth, 20000);
+
+async function keepAwake() { try { await navigator.wakeLock.request("screen"); } catch (e) {} }
+keepAwake(); document.addEventListener("visibilitychange", () => { if (!document.hidden) keepAwake(); });
+if ("speechSynthesis" in window) speechSynthesis.onvoiceschanged = () => {};
+if (!store.get("jkey")) say("Mantén pulsada la pantalla para poner la dirección y la clave.", 15000);
+window.jarvisFace = { emotionOf, plain, spokenText, splitDetails, reply, ask, setState: (s) => { state = s; } };
+</script>
+</body>
+</html>

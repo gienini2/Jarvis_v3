@@ -33,6 +33,7 @@ PROVIDERS_JSON = Path(__file__).resolve().parents[1] / "config" / "providers.jso
 CATALOG = {
     "groq": ("https://api.groq.com/openai/v1/models", settings.GROQ_API_KEY),
     "nvidia": ("https://integrate.api.nvidia.com/v1/models", settings.NVIDIA_API_KEY),
+    "cerebras": ("https://api.cerebras.ai/v1/models", settings.CEREBRAS_API_KEY),
     "kimi": (settings.KIMI_API_URL.replace("/chat/completions", "/models"), settings.KIMI_API_KEY),
 }
 

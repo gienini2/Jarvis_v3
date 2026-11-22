@@ -54,3 +54,6 @@ data/whatsapp_exports/
 
 # Resultados brutos de evaluaciones de modelos (el resumen .md si se versiona)
 data/eval_modelos_*.json
+
+# Excepcion: requisitos del despliegue de Alpha50 en Figaro (los usa migrar_desde_pc.ps1)
+!deploy/**/requirements.txt

@@ -1,0 +1,6 @@
+# Dependencias de Alpha50 en Figaro (el script del PC fija las versiones del PC
+# en requirements.lock.txt para que la sesion de Garmin sea compatible)
+requests
+schedule
+python-dotenv
+garminconnect

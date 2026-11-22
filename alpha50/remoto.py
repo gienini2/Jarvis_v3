@@ -1,7 +1,7 @@
 """
 alpha50/remoto.py -- acceso de Jarvis (PC) a Alpha50 cuando vive en Figaro.
 
-Si settings.ALPHA50_URL esta configurado (p. ej. http://100.78.43.76:10005),
+Si settings.ALPHA50_URL esta configurado (p. ej. http://100.78.43.76:10050),
 Alpha50 corre en Figaro (alpha50/servicio.py) y el PC NO debe tocar su copia
 local de alpha50_cronologia.db: los mensajes "/alpha50 ...", el historial y el
 repaso se piden por HTTP. Sin ALPHA50_URL todo sigue en local, como antes.

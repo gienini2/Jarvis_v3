@@ -153,7 +153,7 @@ NO es "Ollama local con fallback a Anthropic". La selección de modelo es
   (`send_email`, `create_calendar_event`).
 - **Alpha50** (entrenamiento): `alpha50/*` + `connectors/garmin_workouts.py`.
   **Corre en Figaro** (systemd `alpha50`, `/opt/alpha50`, `alpha50/servicio.py`):
-  brief de las 07:00 (`TZ=Europe/Madrid`) + API en `100.78.43.76:10005` con cabecera
+  brief de las 07:00 (`TZ=Europe/Madrid`) + API en `100.78.43.76:<puerto>` (`/opt/alpha50/PUERTO`, 10050 si estaba libre) con cabecera
   `X-Alpha50-Key`. El relay le pasa los `/alpha50` directamente (no dependen del PC).
   El PC usa `alpha50/remoto.py` si `ALPHA50_URL` esta en `.env` (historial, web, chat);
   el `Alpha50Scheduler` del PC queda desactivado. BD real en Figaro:

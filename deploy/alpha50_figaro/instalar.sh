@@ -43,16 +43,48 @@ REQ="$SRC/deploy/requirements.lock.txt"; [ -s "$REQ" ] || REQ="$SRC/deploy/requi
 "$DST/venv/bin/pip" install -q --upgrade pip
 "$DST/venv/bin/pip" install -q -r "$REQ"
 
-echo "== 5. Servicio systemd"
+KEY=$(grep -E '^ALPHA50_API_KEY=' "$DST/.env" | cut -d= -f2-)
+BIND=$(grep -E '^ALPHA50_BIND=' "$DST/.env" | cut -d= -f2-)
+PORT=$(grep -E '^ALPHA50_PORT=' "$DST/.env" | cut -d= -f2-)
+
+echo "== 5. Puerto"
+systemctl stop alpha50 2>/dev/null || true      # libera el puerto si ya era nuestro
+libre() { ! ss -ltnH "( sport = :$1 )" | grep -q .; }
+if ! libre "$PORT"; then
+    echo "   el $PORT esta ocupado por: $(ss -ltnpH "( sport = :$PORT )" | head -1)"
+    PORT=""
+    for p in $(seq 10050 10099); do if libre "$p"; then PORT=$p; break; fi; done
+    [ -n "$PORT" ] || { echo "No hay puerto libre entre 10050 y 10099"; exit 1; }
+    sed -i "s/^ALPHA50_PORT=.*/ALPHA50_PORT=$PORT/" "$DST/.env"
+fi
+echo "$PORT" > "$DST/PUERTO"; chmod 644 "$DST/PUERTO"   # lo lee el script del PC
+echo "   Alpha50 usara el puerto $PORT"
+
+echo "== 6. Servicio systemd"
 install -m 644 "$SRC/deploy/alpha50.service" /etc/systemd/system/alpha50.service
 systemctl daemon-reload
 systemctl enable alpha50 >/dev/null
 systemctl restart alpha50
+OK=""
+for i in $(seq 1 15); do
+    if curl -fsS "http://$BIND:$PORT/health" 2>/dev/null | grep -q '"alpha50"'; then OK=1; break; fi
+    sleep 2
+done
+if [ -z "$OK" ]; then
+    echo "!! Alpha50 no responde en http://$BIND:$PORT -- no toco el relay"
+    journalctl -u alpha50 -n 25 --no-pager
+    systemctl disable --now alpha50 >/dev/null 2>&1 || true
+    # Si una instalacion anterior dejo el relay apuntando aqui, devolverlo al PC
+    if grep -q '^ALPHA50_URL=' "$RELAY_DIR/.env"; then
+        sed -i '/^ALPHA50_URL=/d;/^ALPHA50_API_KEY=/d' "$RELAY_DIR/.env"
+        systemctl restart jarvis-relay
+        echo "   relay devuelto al PC (sin ALPHA50_URL)"
+    fi
+    exit 1
+fi
+echo "   Alpha50 responde"
 
-echo "== 6. Relay: enrutar /alpha50 al servicio local"
-KEY=$(grep -E '^ALPHA50_API_KEY=' "$DST/.env" | cut -d= -f2-)
-BIND=$(grep -E '^ALPHA50_BIND=' "$DST/.env" | cut -d= -f2-)
-PORT=$(grep -E '^ALPHA50_PORT=' "$DST/.env" | cut -d= -f2-)
+echo "== 7. Relay: enrutar /alpha50 al servicio local"
 cp -a "$RELAY_DIR/relay.py" "$RELAY_DIR/relay.py.bak.$STAMP"
 cp -a "$RELAY_DIR/.env" "$RELAY_DIR/.env.bak.$STAMP"
 install -m 644 "$SRC/relay/relay.py" "$RELAY_DIR/relay.py"
@@ -61,13 +93,12 @@ printf 'ALPHA50_URL=http://%s:%s\nALPHA50_API_KEY=%s\n' "$BIND" "$PORT" "$KEY" >
 systemctl restart jarvis-relay
 echo "   copias: relay.py.bak.$STAMP y .env.bak.$STAMP en $RELAY_DIR"
 
-echo "== 7. Comprobaciones"
-sleep 6
-systemctl is-active alpha50 jarvis-relay || echo "   !! algun servicio no esta activo (ver journal abajo)"
+echo "== 8. Comprobaciones"
+sleep 5
+systemctl is-active alpha50 jarvis-relay || echo "   !! algun servicio no esta activo"
 echo "   hora del servicio: $(TZ=Europe/Madrid date '+%Y-%m-%d %H:%M %Z')"
-curl -fsS "http://$BIND:$PORT/health" && echo || echo "   !! /health no responde"
 curl -fsS -H "X-Alpha50-Key: $KEY" -X POST -H 'Content-Type: application/json' \
      -d '{"texto":"/alpha50 estado"}' "http://$BIND:$PORT/mensaje" && echo || echo "   !! /mensaje no responde"
-journalctl -u alpha50 -n 15 --no-pager
+journalctl -u alpha50 -n 10 --no-pager
 
 echo "OK: Alpha50 instalado en Figaro (el paquete de /tmp se borra al salir)."

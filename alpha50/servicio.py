@@ -11,7 +11,7 @@ Un solo proceso con dos partes:
          pestana Alpha50 de la web) y use Alpha50 desde el chat local.
 
 Endpoints (todos menos /health exigen la cabecera X-Alpha50-Key):
-  GET  /health                       -> {"status": "ok"}
+  GET  /health                       -> {"status": "ok", "servicio": "alpha50"}
   POST /mensaje   {"texto": "..."}   -> {"respuesta": str | null}
   GET  /historial?dias=14&fecha=     -> get_historial()
   GET  /repaso?dias=7                -> garmin_actividades.repaso()
@@ -37,7 +37,7 @@ import scheduler  # noqa: E402  (carga el .env del directorio padre)
 
 API_KEY = os.environ.get("ALPHA50_API_KEY", "")
 BIND    = os.environ.get("ALPHA50_BIND", "127.0.0.1")
-PORT    = int(os.environ.get("ALPHA50_PORT", "10005"))
+PORT    = int(os.environ.get("ALPHA50_PORT", "10050"))
 
 # El intent handler toca la sesion en SQLite y lanza hilos: un mensaje a la vez.
 _lock_mensajes = threading.Lock()
@@ -75,7 +75,7 @@ class Alpha50Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         url = urlparse(self.path)
         if url.path == "/health":
-            return self._json(200, {"status": "ok"})
+            return self._json(200, {"status": "ok", "servicio": "alpha50"})
         if not self._autorizado():
             return self._json(401, {"error": "clave X-Alpha50-Key ausente o incorrecta"})
         q = parse_qs(url.query)

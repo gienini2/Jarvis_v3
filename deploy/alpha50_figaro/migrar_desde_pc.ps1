@@ -19,7 +19,7 @@ param(
     [string]$Figaro    = "figaro",            # alias SSH (el mismo que usas con scp)
     [string]$JarvisDir = "C:\Users\Usuario\jarvis",
     [string]$FigaroIP  = "100.78.43.76",      # IP Tailscale de Figaro
-    [int]   $Puerto    = 10005
+    [int]   $Puerto    = 10050
 )
 $ErrorActionPreference = "Stop"
 $utf8 = New-Object System.Text.UTF8Encoding($false)
@@ -125,6 +125,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "scp fallo" }
     ssh -t $Figaro 'if [ "$(id -u)" = 0 ]; then bash /tmp/alpha50_deploy/deploy/instalar.sh; else sudo bash /tmp/alpha50_deploy/deploy/instalar.sh; fi'
     if ($LASTEXITCODE -ne 0) { throw "instalar.sh fallo en Figaro" }
+    # Si el puerto pedido estaba ocupado, instalar.sh eligio otro: usar el real
+    $real = (ssh $Figaro "cat /opt/alpha50/PUERTO" | Select-Object -First 1)
+    if ($real -match '^\s*(\d+)\s*$') { $Puerto = [int]$matches[1] } else { throw "No pude leer el puerto de Alpha50 en Figaro" }
+    Write-Host "   Alpha50 escucha en ${FigaroIP}:$Puerto"
 }
 catch {
     Write-Host "ERROR: $_" -ForegroundColor Red

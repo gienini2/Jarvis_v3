@@ -8,7 +8,7 @@ Alpha50 pasa del PC a Figaro, que está siempre encendido. Así el brief de las
 ```
 Figaro (systemd)
   alpha50.service  ── 07:00 ──► Garmin Connect ──► relay /notify (localhost) ──► Telegram
-     ▲  API :10005 (IP Tailscale, cabecera X-Alpha50-Key)
+     ▲  API :10050 o el libre que elija (IP Tailscale, cabecera X-Alpha50-Key)
      │
   jarvis-relay ◄── "/alpha50 ..." desde Telegram   (ya no pasa por el PC)
 

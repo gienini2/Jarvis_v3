@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     RELAY_API_KEY: str = ""    # protege /queue/pending y /queue/ack del relay en Figaro
 
     # Alpha50 en Figaro (alpha50/servicio.py). Vacio = Alpha50 local en el PC.
-    ALPHA50_URL: str = ""      # p. ej. http://100.78.43.76:10005
+    ALPHA50_URL: str = ""      # p. ej. http://100.78.43.76:10050
     ALPHA50_API_KEY: str = ""  # cabecera X-Alpha50-Key
 
     # Google

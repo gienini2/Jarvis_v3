@@ -152,8 +152,13 @@ NO es "Ollama local con fallback a Anthropic". La selección de modelo es
   cuenta `jarvis.gienini2.1009@gmail.com`). Tools de lectura y de escritura
   (`send_email`, `create_calendar_event`).
 - **Alpha50** (entrenamiento): `alpha50/*` + `connectors/garmin_workouts.py`.
-  Scheduler propio NSSM `Alpha50Scheduler` (independiente de JarvisAPI). Estado en
-  `alpha50_cronologia.db`. Tool `query_alpha50_history`.
+  **Corre en Figaro** (systemd `alpha50`, `/opt/alpha50`, `alpha50/servicio.py`):
+  brief de las 07:00 (`TZ=Europe/Madrid`) + API en `100.78.43.76:10005` con cabecera
+  `X-Alpha50-Key`. El relay le pasa los `/alpha50` directamente (no dependen del PC).
+  El PC usa `alpha50/remoto.py` si `ALPHA50_URL` esta en `.env` (historial, web, chat);
+  el `Alpha50Scheduler` del PC queda desactivado. BD real en Figaro:
+  `/opt/alpha50/alpha50/alpha50_cronologia.db`. Despliegue y vuelta atras:
+  `deploy/alpha50_figaro/README.md`. Tool `query_alpha50_history`.
 - **Editor de código (aider)**: `core/tools.py: edit_code()` — un commit git
   reversible por cambio, solo en repos de `config/repo_aliases.json`.
 - **Netscan** (`netscan/*`): descubre/identifica hosts LAN + CVE lookup + report.
@@ -219,8 +224,9 @@ Si un ID configurado desaparece, el modelo deja de servir.
   medida en `config/puntuaciones_locales.json` (el router la usa como `role_priority.tools`; <40 = no fiable, se descarta). Orden: qwen3:8b 96.6,
   qwen3.5:9b 94.9, ministral-3:8b 93.0, dolphin3:8b 91.9 (herramientas emuladas), qwen2.5:7b 90.3, hermes3:8b 84.7. Los modelos sin plantilla de
   herramientas (dolphin) o que no las llaman (mistral, `"tool_mode": "emulated"`) usan `core/tool_emulation.py`. Repetir la evaluacion al cambiar modelos.
-- **Alpha50** solo atiende mensajes que EMPIEZAN por `/alpha50` (`alpha50/scheduler.py`); su pregunta pendiente caduca a las 2 h. El relay de Figaro
-  reenvia `/alpha50` (desplegado 2026-10-25; copias `.bak.20261025-1214` en `/opt/jarvis-relay/`).
+- **Alpha50** solo atiende mensajes que EMPIEZAN por `/alpha50` (`alpha50/scheduler.py`); su pregunta pendiente caduca a las 2 h, salvo la de
+  metricas, que vale todo el dia. Desde 2026-11 corre en Figaro (motivo: el PC se suspendia o perdia Tailscale y el brief de las 07:00 salia a
+  media manana o nunca); el relay enruta `/alpha50` al servicio local con `ALPHA50_URL`.
 - Fase 3 de WhatsApp hecha: `resumir_chat` y `redactar_como_yo` (`core/chat_private.py`, privadas; estilo indexado con `scripts/indexar_estilo.py`).
 - Voz privada: Whisper local (faster-whisper en CPU) para poder hablar en modo privado; opcional, puede chocar con el bloqueo de DLL de Windows.
 - TLS de Fígaro: cert de Tailscale en `/etc/ssl/figaro-server.taild7b9e6.ts.net.crt`,

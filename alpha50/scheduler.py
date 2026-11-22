@@ -62,6 +62,8 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 RELAY_URL        = os.environ.get("RELAY_URL", "http://100.78.43.76:10004")
 RELAY_API_KEY    = os.environ.get("RELAY_API_KEY", "")
 HORA_MATUTINO    = os.environ.get("ALPHA50_HORA", "07:00")
+# Separacion minima entre reintentos del flujo matutino cuando no se pudo enviar
+REINTENTO_CATCHUP_S = int(os.environ.get("ALPHA50_REINTENTO_S", "300"))
 
 DB_PATH = os.path.join(BASE_DIR, "alpha50_cronologia.db")
 
@@ -294,8 +296,10 @@ def ejecutar_matutino():
         # La bronca del dia anterior: que tocaba vs que hiciste (por Telegram).
         msg = bronca_dia(date.today() - _td(days=1))
         if msg:
-            enviar_telegram(msg)
-            print("[Alpha50] Bronca del día anterior enviada")
+            if enviar_telegram(msg):
+                print("[Alpha50] Bronca del día anterior enviada")
+            else:
+                print("[Alpha50] Bronca del día anterior NO enviada")
     except Exception as e:
         print(f"[Alpha50] Garmin sync/autoregistro/bronca falló (no crítico): {e}")
 
@@ -697,10 +701,18 @@ def arrancar_scheduler():
     # lanzó el flujo, se dispara. Si el envío falla (relay/Tailscale aún no
     # listo al encender), NO se marca como hecho, así que el bucle lo reintenta
     # cada 30 s hasta que la red esté disponible y el mensaje salga.
+    # Cada intento fallido vuelve a llamar a Garmin: se espacian para no provocar
+    # el bloqueo 429 si lo que falla es el envio y no Garmin.
+    ultimo_intento = 0.0
     while True:
-        schedule.run_pending()
+        try:
+            schedule.run_pending()
+        except Exception as e:   # un fallo del flujo no debe matar el bucle
+            print(f"[Alpha50] Error en el flujo programado: {e}")
 
-        if _hora_ya_pasada(HORA_MATUTINO) and not _matutino_ya_lanzado_hoy():
+        if (_hora_ya_pasada(HORA_MATUTINO) and not _matutino_ya_lanzado_hoy()
+                and time.time() - ultimo_intento >= REINTENTO_CATCHUP_S):
+            ultimo_intento = time.time()
             print("[Alpha50] Catch-up: la hora ya paso y no hay flujo hoy -> intentando")
             try:
                 ejecutar_matutino()

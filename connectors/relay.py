@@ -9,6 +9,7 @@ Jarvis Relay — figaro-server
 import asyncio
 import logging
 import os
+import re
 import sqlite3
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -43,6 +44,14 @@ DB_PATH         = Path(os.environ.get("QUEUE_DB", "/opt/jarvis-relay/queue.db"))
 # Claves compartidas -- ver config/settings.py (JARVIS_API_KEY / RELAY_API_KEY)
 JARVIS_API_KEY  = os.environ.get("JARVIS_API_KEY", "")
 RELAY_API_KEY   = os.environ.get("RELAY_API_KEY", "")
+
+# Alpha50 corre en este mismo servidor (alpha50/servicio.py, systemd alpha50).
+# Con ALPHA50_URL puesto, los "/alpha50 ..." van ahi directamente y funcionan
+# aunque el PC este apagado o sin Tailscale. Vacio = se reenvian al PC como antes.
+ALPHA50_URL     = os.environ.get("ALPHA50_URL", "").rstrip("/")
+ALPHA50_API_KEY = os.environ.get("ALPHA50_API_KEY", "")
+ALPHA50_TIMEOUT = float(os.environ.get("ALPHA50_TIMEOUT", "20"))
+_ES_ALPHA50     = re.compile(r"^\s*/?alpha50(?:@\w+)?\b", re.IGNORECASE)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -151,6 +160,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     log.info(f"Mensaje recibido: {text[:60]}")
 
+    if ALPHA50_URL and _ES_ALPHA50.match(text or ""):
+        await update.message.reply_text(await _preguntar_alpha50(text))
+        return
+
     headers = {"X-Jarvis-Key": JARVIS_API_KEY} if JARVIS_API_KEY else {}
     ultimo_conn_err = None
 
@@ -199,6 +212,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "⏳ Jarvis offline. Mensaje guardado — lo procesará cuando arranque."
     )
+
+
+async def _preguntar_alpha50(text: str) -> str:
+    """Pasa el mensaje al servicio Alpha50 de este servidor y devuelve su respuesta."""
+    headers = {"X-Alpha50-Key": ALPHA50_API_KEY} if ALPHA50_API_KEY else {}
+    try:
+        async with httpx.AsyncClient(timeout=ALPHA50_TIMEOUT) as client:
+            resp = await client.post(f"{ALPHA50_URL}/mensaje", json={"texto": text}, headers=headers)
+            resp.raise_for_status()
+            respuesta = resp.json().get("respuesta")
+    except Exception as e:
+        log.warning(f"[alpha50] servicio no disponible: {e}")
+        return "⚠️ Alpha50 no responde ahora mismo. Prueba en un minuto."
+    log.info("Respuesta de Alpha50 enviada")
+    return respuesta or "🤷 Alpha50 no ha entendido el mensaje. Escribe /alpha50 para ver los comandos."
 
 
 telegram_app = None  # se asigna en run_bot() -- /notify reutiliza telegram_app.bot

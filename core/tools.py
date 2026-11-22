@@ -908,6 +908,9 @@ def delete_calendar_event(event_id: str) -> dict:
 
 
 def query_alpha50_history(fecha: str = "", dias: int = 14) -> dict:
+    from alpha50 import remoto
+    if remoto.activo():
+        return remoto.historial(fecha=fecha, dias=dias)
     from alpha50.history_reader import get_historial
     return get_historial(fecha=fecha, dias=dias)
 
@@ -918,6 +921,9 @@ def repaso_entrenos(dias: int = 7) -> dict:
     except Exception as e:
         return {"error": f"No puedo cargar el modulo de actividades Garmin: {e}"}
     try:
+        from alpha50 import remoto
+        if remoto.activo():
+            return remoto.repaso(dias=max(1, min(int(dias or 7), 90)))
         return repaso(dias=max(1, min(int(dias or 7), 90)))
     except Exception as e:
         return {"error": f"Fallo al hacer el repaso de entrenos: {e}"}

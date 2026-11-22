@@ -128,8 +128,12 @@ def _process(message: str) -> tuple[str, str]:
     # Alpha50 primero: entreno/rutina, por comando o lenguaje natural, y desde
     # cualquier interfaz (Telegram, Jarvis Chat, relay) — todas pasan por aquí.
     try:
-        from alpha50.scheduler import alpha50_intent_handler
-        alpha50_resp = alpha50_intent_handler(message)
+        from alpha50 import remoto
+        if remoto.activo():   # Alpha50 vive en Figaro: no tocar la BD local
+            alpha50_resp = remoto.mensaje(message)
+        else:
+            from alpha50.scheduler import alpha50_intent_handler
+            alpha50_resp = alpha50_intent_handler(message)
     except Exception as e:
         log.warning(f"[alpha50] handler falló: {e}")
         alpha50_resp = None

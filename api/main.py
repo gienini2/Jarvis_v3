@@ -187,6 +187,9 @@ def results_audit(limit: int = Query(10)):
 @app.get("/results/alpha50")
 def results_alpha50(dias: int = Query(14)):
     """Estado del programa Alpha50 + historial de dias (solo lectura)."""
+    from alpha50 import remoto
+    if remoto.activo():
+        return remoto.historial(dias=dias)
     from alpha50.history_reader import get_historial
     return get_historial(dias=dias)
 

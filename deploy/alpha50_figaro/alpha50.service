@@ -1,0 +1,22 @@
+[Unit]
+Description=Alpha50 (entrenador): brief de las 07:00 + API para el relay y el PC
+After=network-online.target tailscaled.service jarvis-relay.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/alpha50
+EnvironmentFile=/opt/alpha50/.env
+# Figaro corre en UTC: sin esto las "07:00" serian las 08:00/09:00 en Espana
+Environment=TZ=Europe/Madrid
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONUTF8=1
+ExecStart=/opt/alpha50/venv/bin/python alpha50/servicio.py
+Restart=always
+# Si arranca antes de que Tailscale tenga IP, el bind falla y reintenta
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
